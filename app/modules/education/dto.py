@@ -76,6 +76,25 @@ class UserModuleProgressDTO(BaseModel):
     completedAt: datetime | None = None
 
 
+class StartModuleProgressResponseDTO(BaseModel):
+    progress: UserModuleProgressDTO
+
+
+class UpdateModuleProgressRequestDTO(BaseModel):
+    sectionId: str = Field(..., min_length=1)
+
+
+class SubmitQuizAttemptRequestDTO(BaseModel):
+    score: int = Field(..., ge=0, le=100)
+    correctAnswers: int = Field(..., ge=0)
+    totalQuestions: int = Field(..., ge=1)
+
+
+class SubmitQuizAttemptResponseDTO(BaseModel):
+    passed: bool
+    progress: UserModuleProgressDTO
+
+
 class ModuleDetailDTO(BaseModel):
     id: str
     slug: str
