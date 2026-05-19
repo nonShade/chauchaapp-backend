@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 import uuid
@@ -55,6 +55,7 @@ def _make_transaction_mock(
     tx = MagicMock(spec=Transaction)
     tx.amount = amount
     tx.transaction_date = tx_date
+    tx.description = None
 
     tx.transaction_type = MagicMock()
     tx.transaction_type.name = type_name
@@ -62,8 +63,10 @@ def _make_transaction_mock(
     if freq_name:
         tx.transaction_frequency = MagicMock()
         tx.transaction_frequency.name = freq_name
+        tx.transaction_frequency_id = uuid.uuid4()
     else:
         tx.transaction_frequency = None
+        tx.transaction_frequency_id = None
 
     if category_name or category_id:
         tx.category = MagicMock()
@@ -229,7 +232,7 @@ def test_get_user_transactions(service, mock_repository):
         transaction_date=date(2026, 1, 1),
         transaction_type_id=uuid.uuid4()
     )
-    mock_repository.get_transactions_by_user_in_range.return_value = ([tx], 1)
+    mock_repository.get_all_user_transactions_eager.return_value = [tx]
 
     # Act
     result = service.get_user_transactions(user_id, page=1, limit=10)
@@ -238,6 +241,48 @@ def test_get_user_transactions(service, mock_repository):
     assert result.meta.totalItems == 1
     assert len(result.data) == 1
     assert result.data[0].amount == Decimal("100")
+
+
+def test_get_user_transactions_projects_monthly_recurrence(service, mock_repository):
+    # Arrange
+    user_id = uuid.uuid4()
+    tx = _make_transaction_mock(
+        amount=Decimal("1000"),
+        type_name="ingreso",
+        tx_date=date(2026, 1, 31),
+        freq_name="Mensual",
+    )
+    mock_repository.get_all_user_transactions_eager.return_value = [tx]
+
+    # Act
+    result = service.get_user_transactions(
+        user_id,
+        page=1,
+        limit=10,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 3, 31),
+    )
+
+    # Assert
+    assert result.meta.totalItems == 3
+    assert [item.transaction_date for item in result.data] == [
+        date(2026, 3, 31),
+        date(2026, 2, 28),
+        date(2026, 1, 31),
+    ]
+    assert all(item.amount == Decimal("1000") for item in result.data)
+
+
+def test_transaction_create_dto_parses_local_timezone():
+    data = TransactionCreateDTO(
+        amount=Decimal("100"),
+        transaction_type_id=uuid.uuid4(),
+        transaction_date=date(2026, 4, 29),
+    )
+
+    assert isinstance(data.transaction_date, datetime)
+    assert data.transaction_date.tzinfo is not None
+    assert data.transaction_date.tzinfo.key == "America/Santiago"
 
 
 def test_get_financial_summary(service, mock_repository):

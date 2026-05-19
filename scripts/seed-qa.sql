@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================
 -- TEST USERS
 -- ============================================================
--- 10 test users with varied income types and financial profiles.
+-- 11 test users with varied income types and financial profiles.
 -- 2 specific users for login/register test cases:
 --   - test_login@chauchaapp.cl  (for login tests)
 --   - test_register@chauchaapp.cl (for register flow tests)
@@ -32,7 +32,16 @@ INSERT INTO "user" (
         (SELECT income_type_id FROM income_type WHERE name = 'Sueldo fijo'),
         850000.00, 620000.00
     ),
-    -- User 2: Register flow test user
+    -- User 2: Family copy of Login test user
+    (
+        'Test', 'Family',
+        'test_family@chauchaapp.cl',
+        crypt('TestPass123!', gen_salt('bf')),
+        '1990-05-15',
+        (SELECT income_type_id FROM income_type WHERE name = 'Sueldo fijo'),
+        850000.00, 620000.00
+    ),
+    -- User 3: Register flow test user
     (
         'Test', 'Register',
         'test_register@chauchaapp.cl',
@@ -41,7 +50,7 @@ INSERT INTO "user" (
         (SELECT income_type_id FROM income_type WHERE name = 'Independiente'),
         1200000.00, 780000.00
     ),
-    -- User 3: María González - Salaried
+    -- User 4: María González - Salaried
     (
         'María', 'González',
         'maria.gonzalez@test.cl',
@@ -238,6 +247,84 @@ FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
 SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Inversiones'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 50000.00, 'Dividendos', '2026-03-01'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- FAMILY GROUP TEST DATA
+-- ============================================================
+
+INSERT INTO family_group (name, admin_id)
+SELECT 'Grupo Familiar Test', u.user_id
+FROM "user" u
+WHERE u.email = 'test_login@chauchaapp.cl'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM family_group fg
+      WHERE fg.name = 'Grupo Familiar Test'
+        AND fg.admin_id = u.user_id
+  );
+
+INSERT INTO group_member (user_id, family_group_id)
+SELECT u.user_id, fg.family_group_id
+FROM "user" u
+JOIN family_group fg ON fg.name = 'Grupo Familiar Test'
+JOIN "user" admin ON admin.user_id = fg.admin_id
+WHERE admin.email = 'test_login@chauchaapp.cl'
+  AND u.email IN ('test_login@chauchaapp.cl', 'test_family@chauchaapp.cl')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM group_member gm
+      WHERE gm.user_id = u.user_id
+        AND gm.family_group_id = fg.family_group_id
+  );
+
+UPDATE "transaction" t
+SET family_group_id = fg.family_group_id
+FROM family_group fg
+JOIN "user" admin ON admin.user_id = fg.admin_id
+WHERE admin.email = 'test_login@chauchaapp.cl'
+  AND fg.name = 'Grupo Familiar Test'
+  AND t.user_id = admin.user_id
+  AND t.family_group_id IS NULL;
+
+INSERT INTO "transaction" (
+    user_id,
+    family_group_id,
+    transaction_type_id,
+    transaction_category_id,
+    transaction_frequency_id,
+    amount,
+    description,
+    transaction_date
+)
+SELECT
+    family_user.user_id,
+    fg.family_group_id,
+    t.transaction_type_id,
+    t.transaction_category_id,
+    t.transaction_frequency_id,
+    t.amount,
+    t.description,
+    CASE
+        WHEN t.description = 'Sueldo mensual' THEN TIMESTAMP WITH TIME ZONE '2026-01-02 00:00:00-03'
+        ELSE t.transaction_date
+    END
+FROM "transaction" t
+JOIN "user" source_user ON source_user.user_id = t.user_id
+JOIN "user" family_user ON family_user.email = 'test_family@chauchaapp.cl'
+JOIN family_group fg ON fg.name = 'Grupo Familiar Test'
+JOIN "user" admin ON admin.user_id = fg.admin_id
+WHERE source_user.email = 'test_login@chauchaapp.cl'
+  AND admin.email = 'test_login@chauchaapp.cl'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM "transaction" existing
+      WHERE existing.user_id = family_user.user_id
+        AND existing.description = t.description
+        AND existing.transaction_date = CASE
+            WHEN t.description = 'Sueldo mensual' THEN TIMESTAMP WITH TIME ZONE '2026-01-02 00:00:00-03'
+            ELSE t.transaction_date
+        END
+  );
 
 -- ============================================================
 -- Other QA Users

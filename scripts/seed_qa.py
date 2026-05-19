@@ -37,6 +37,7 @@ from app.modules.transactions.entities import (
     TransactionCategory,
     Transaction,
 )
+from app.modules.groups.entities import FamilyGroup, GroupMember
 from app.modules.notifications.entities import NotificationType, NotificationStatus
 from app.modules.education.entities import EducationalTopic
 
@@ -196,6 +197,13 @@ def seed_users(session):
             income_type_id=independent.income_type_id if independent else None,
             monthly_income=Decimal("1200000.00"), monthly_expenses=Decimal("780000.00"),
         ),
+        User(
+            first_name="Test", last_name="Family",
+            email="test_family@chauchaapp.cl", password=hashed_pw,
+            birth_date=date(1990, 5, 15),
+            income_type_id=salaried.income_type_id if salaried else None,
+            monthly_income=Decimal("850000.00"), monthly_expenses=Decimal("620000.00"),
+        ),
         # Diverse users
         User(
             first_name="María", last_name="González",
@@ -261,10 +269,43 @@ def seed_users(session):
             session.add(user)
 
     session.flush()
-    print("  ✓ Test users seeded (10 users)")
+    print("  ✓ Test users seeded (11 users)")
 
 
-def seed_transactions(session):
+def seed_family_group(session):
+    """Seed family group for shared cartola testing."""
+    admin = session.query(User).filter_by(email="test_login@chauchaapp.cl").first()
+    member = session.query(User).filter_by(email="test_family@chauchaapp.cl").first()
+    if not admin or not member:
+        return None
+
+    group = (
+        session.query(FamilyGroup)
+        .filter_by(name="Grupo Familiar Test", admin_id=admin.user_id)
+        .first()
+    )
+    if not group:
+        group = FamilyGroup(name="Grupo Familiar Test", admin_id=admin.user_id)
+        session.add(group)
+        session.flush()
+
+    for user in (admin, member):
+        existing = (
+            session.query(GroupMember)
+            .filter_by(user_id=user.user_id, family_group_id=group.family_group_id)
+            .first()
+        )
+        if not existing:
+            session.add(
+                GroupMember(user_id=user.user_id, family_group_id=group.family_group_id)
+            )
+
+    session.flush()
+    print("  ✓ Family group seeded")
+    return group
+
+
+def seed_transactions(session, family_group):
     """Seed sample transactions for all test users."""
 
     # Get type/frequency references
@@ -289,14 +330,18 @@ def seed_transactions(session):
     otros_ingresos = session.query(TransactionCategory).filter_by(name="Otros Ingresos").first()
 
     all_transactions = []
+    family_group_id = family_group.family_group_id if family_group else None
 
-    def _add_tx(email, tx_type, category, frequency, amount, description, tx_date):
+    def _add_tx(
+        email, tx_type, category, frequency, amount, description, tx_date, family_group_id=None
+    ):
         """Helper to build a Transaction and append to the list."""
         user = session.query(User).filter_by(email=email).first()
         if not user:
             return
         all_transactions.append(Transaction(
             user_id=user.user_id,
+            family_group_id=family_group_id,
             amount=Decimal(str(amount)),
             transaction_type_id=tx_type.transaction_type_id,
             transaction_category_id=category.transaction_category_id,
@@ -309,40 +354,60 @@ def seed_transactions(session):
     # test_login@chauchaapp.cl: 27 transactions
     # =========================================
 
-    # Monthly recurring (start January, project across months)
-    _add_tx("test_login@chauchaapp.cl", income_type, sueldo, monthly, 850000, "Sueldo mensual", date(2026, 1, 1))
-    _add_tx("test_login@chauchaapp.cl", expense_type, vivienda, monthly, 350000, "Arriendo", date(2026, 1, 5))
-    _add_tx("test_login@chauchaapp.cl", expense_type, servicios_basicos, monthly, 42000, "Luz y Agua", date(2026, 1, 10))
-    _add_tx("test_login@chauchaapp.cl", expense_type, otros_gastos, monthly, 10000, "Seguro celular", date(2026, 1, 15))
-    _add_tx("test_login@chauchaapp.cl", expense_type, entretenimiento, monthly, 8500, "Netflix", date(2026, 1, 20))
-    _add_tx("test_login@chauchaapp.cl", expense_type, salud, monthly, 30000, "Seguro salud", date(2026, 1, 25))
+    test_login_transactions = [
+        (income_type, sueldo, monthly, 850000, "Sueldo mensual", date(2026, 1, 1)),
+        (expense_type, vivienda, monthly, 350000, "Arriendo", date(2026, 1, 5)),
+        (expense_type, servicios_basicos, monthly, 42000, "Luz y Agua", date(2026, 1, 10)),
+        (expense_type, otros_gastos, monthly, 10000, "Seguro celular", date(2026, 1, 15)),
+        (expense_type, entretenimiento, monthly, 8500, "Netflix", date(2026, 1, 20)),
+        (expense_type, salud, monthly, 30000, "Seguro salud", date(2026, 1, 25)),
+        (expense_type, alimentacion, weekly, 15000, "Supermercado semanal", date(2026, 5, 1)),
+        (expense_type, transporte, weekly, 5000, "Carga Bip semanal", date(2026, 5, 3)),
+        (expense_type, alimentacion, one_time, 45000, "Súper Líder", date(2026, 4, 5)),
+        (expense_type, transporte, one_time, 15000, "Carga Bip", date(2026, 4, 6)),
+        (expense_type, salud, one_time, 32000, "Farmacia Cruz Verde", date(2026, 4, 20)),
+        (expense_type, educacion, one_time, 150000, "Curso Online", date(2026, 4, 22)),
+        (expense_type, entretenimiento, one_time, 25000, "Cine y cena", date(2026, 4, 25)),
+        (expense_type, otros_gastos, one_time, 60000, "Compra imprevista", date(2026, 4, 28)),
+        (expense_type, vivienda, one_time, 45000, "Mantención hogar", date(2026, 3, 15)),
+        (expense_type, transporte, one_time, 60000, "Tag autopista", date(2026, 3, 20)),
+        (expense_type, salud, one_time, 85000, "Dentista", date(2026, 2, 15)),
+        (expense_type, alimentacion, one_time, 55000, "Supermercado Mayo", date(2026, 5, 3)),
+        (expense_type, transporte, one_time, 15000, "Carga Bip Mayo", date(2026, 5, 7)),
+        (expense_type, salud, one_time, 150000, "Consulta Médica", date(2026, 4, 8)),
+        (expense_type, educacion, one_time, 200000, "Curso Desarrollo Web", date(2026, 4, 12)),
+        (expense_type, entretenimiento, one_time, 95000, "Cena Aniversario", date(2026, 4, 18)),
+        (expense_type, alimentacion, one_time, 70000, "Supermercado Extra Abril", date(2026, 4, 25)),
+        (expense_type, alimentacion, one_time, 120000, "Cumpleaños", date(2026, 5, 15)),
+        (expense_type, transporte, one_time, 35000, "Mantención auto", date(2026, 5, 20)),
+        (income_type, freelance, one_time, 200000, "Proyecto freelance", date(2026, 4, 15)),
+        (income_type, inversiones, one_time, 50000, "Dividendos", date(2026, 3, 1)),
+    ]
 
-    # Weekly recurring (start May, active)
-    _add_tx("test_login@chauchaapp.cl", expense_type, alimentacion, weekly, 15000, "Supermercado semanal", date(2026, 5, 1))
-    _add_tx("test_login@chauchaapp.cl", expense_type, transporte, weekly, 5000, "Carga Bip semanal", date(2026, 5, 3))
+    for tx_type, category, frequency, amount, description, tx_date in test_login_transactions:
+        _add_tx(
+            "test_login@chauchaapp.cl",
+            tx_type,
+            category,
+            frequency,
+            amount,
+            description,
+            tx_date,
+            family_group_id=family_group_id,
+        )
 
-    # One-time expenses across multiple months
-    _add_tx("test_login@chauchaapp.cl", expense_type, alimentacion, one_time, 45000, "Súper Líder", date(2026, 4, 5))
-    _add_tx("test_login@chauchaapp.cl", expense_type, transporte, one_time, 15000, "Carga Bip", date(2026, 4, 6))
-    _add_tx("test_login@chauchaapp.cl", expense_type, salud, one_time, 32000, "Farmacia Cruz Verde", date(2026, 4, 20))
-    _add_tx("test_login@chauchaapp.cl", expense_type, educacion, one_time, 150000, "Curso Online", date(2026, 4, 22))
-    _add_tx("test_login@chauchaapp.cl", expense_type, entretenimiento, one_time, 25000, "Cine y cena", date(2026, 4, 25))
-    _add_tx("test_login@chauchaapp.cl", expense_type, otros_gastos, one_time, 60000, "Compra imprevista", date(2026, 4, 28))
-    _add_tx("test_login@chauchaapp.cl", expense_type, vivienda, one_time, 45000, "Mantención hogar", date(2026, 3, 15))
-    _add_tx("test_login@chauchaapp.cl", expense_type, transporte, one_time, 60000, "Tag autopista", date(2026, 3, 20))
-    _add_tx("test_login@chauchaapp.cl", expense_type, salud, one_time, 85000, "Dentista", date(2026, 2, 15))
-    _add_tx("test_login@chauchaapp.cl", expense_type, alimentacion, one_time, 55000, "Supermercado Mayo", date(2026, 5, 3))
-    _add_tx("test_login@chauchaapp.cl", expense_type, transporte, one_time, 15000, "Carga Bip Mayo", date(2026, 5, 7))
-    _add_tx("test_login@chauchaapp.cl", expense_type, salud, one_time, 150000, "Consulta Médica", date(2026, 4, 8))
-    _add_tx("test_login@chauchaapp.cl", expense_type, educacion, one_time, 200000, "Curso Desarrollo Web", date(2026, 4, 12))
-    _add_tx("test_login@chauchaapp.cl", expense_type, entretenimiento, one_time, 95000, "Cena Aniversario", date(2026, 4, 18))
-    _add_tx("test_login@chauchaapp.cl", expense_type, alimentacion, one_time, 70000, "Supermercado Extra Abril", date(2026, 4, 25))
-    _add_tx("test_login@chauchaapp.cl", expense_type, alimentacion, one_time, 120000, "Cumpleaños", date(2026, 5, 15))
-    _add_tx("test_login@chauchaapp.cl", expense_type, transporte, one_time, 35000, "Mantención auto", date(2026, 5, 20))
-
-    # One-time income
-    _add_tx("test_login@chauchaapp.cl", income_type, freelance, one_time, 200000, "Proyecto freelance", date(2026, 4, 15))
-    _add_tx("test_login@chauchaapp.cl", income_type, inversiones, one_time, 50000, "Dividendos", date(2026, 3, 1))
+    for tx_type, category, frequency, amount, description, tx_date in test_login_transactions:
+        family_tx_date = date(2026, 1, 2) if description == "Sueldo mensual" else tx_date
+        _add_tx(
+            "test_family@chauchaapp.cl",
+            tx_type,
+            category,
+            frequency,
+            amount,
+            description,
+            family_tx_date,
+            family_group_id=family_group_id,
+        )
 
     # =========================================
     # Other QA users
@@ -434,8 +499,11 @@ def main():
         print("Seeding test users...")
         seed_users(session)
 
+        print("Seeding family group...")
+        family_group = seed_family_group(session)
+
         print("Seeding sample transactions...")
-        seed_transactions(session)
+        seed_transactions(session, family_group)
 
         session.commit()
         print(f"\n{'='*60}")

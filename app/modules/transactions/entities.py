@@ -9,10 +9,10 @@ Tables:
 """
 
 import uuid
-from datetime import date
+from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -123,7 +123,9 @@ class Transaction(Base, AuditMixin):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
+    transaction_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="transactions")

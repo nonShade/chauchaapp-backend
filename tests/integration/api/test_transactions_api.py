@@ -1,6 +1,6 @@
+from datetime import date
 from unittest.mock import MagicMock
 import uuid
-from datetime import date
 
 from fastapi.testclient import TestClient
 
@@ -111,9 +111,8 @@ def test_list_transactions_api(client: TestClient, mock_db: MagicMock):
         transaction_type_id=uuid.uuid4()
     )
     
-    # Mock count and all for pagination
-    mock_db.query.return_value.filter.return_value.count.return_value = 1
-    mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [tx]
+    # Mock the eager-load query path
+    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [tx]
 
     response = client.get("/v1/transactions/individual?page=1&limit=10")
     

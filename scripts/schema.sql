@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     transaction_frequency_id UUID REFERENCES transaction_frequency(transaction_frequency_id),
     amount DECIMAL(12, 2) NOT NULL,
     description VARCHAR(255),
-    transaction_date DATE NOT NULL,
+    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
