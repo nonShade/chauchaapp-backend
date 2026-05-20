@@ -11,6 +11,8 @@ from app.modules.daily_tips.controller import router as daily_tips_router
 from app.modules.transactions.controller import router as transactions_router
 from app.modules.news.controller import router as news_router
 from app.modules.auth.controller import router as auth_router
+from app.modules.groups.controller import router as groups_router
+from app.modules.notifications.controller import router as notifications_router
 from app.modules.education.controller import router as education_router
 import os
 
@@ -53,6 +55,8 @@ app.include_router(transactions_router)
 app.include_router(news_router)
 app.include_router(daily_tips_router)
 app.include_router(users_router)
+app.include_router(groups_router)
+app.include_router(notifications_router)
 app.include_router(education_router)
 
 
@@ -67,6 +71,7 @@ async def app_exception_handler(request: Request, exc: AppException):
         "NOT_FOUND": 404,
         "CONFLICT": 409,
         "UNAUTHORIZED": 401,
+        "FORBIDDEN": 403,
         "INTERNAL_ERROR": 500,
     }
     status_code = status_map.get(exc.code, 500)
