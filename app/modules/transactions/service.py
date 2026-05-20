@@ -2,9 +2,11 @@
 Transactions service — business logic layer.
 """
 
+import calendar
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 from uuid import UUID
 
 from app.modules.transactions.dto import (
@@ -25,6 +27,8 @@ from app.modules.transactions.entities import Transaction
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.users.repository import UserRepository
 from app.shared.exceptions import ForbiddenException, NotFoundException
+
+SANTIAGO_TZ = ZoneInfo("America/Santiago")
 
 
 class TransactionsService:
@@ -152,13 +156,56 @@ class TransactionsService:
         range are included even if their transaction_date falls before the
         queried period.
         """
-        transactions, total_count = (
-            self._repository.get_transactions_by_user_in_range(
-                user_id, page, limit, start_date, end_date
+        transactions = self._repository.get_all_user_transactions_eager(user_id)
+        projected: list[TransactionResponseDTO] = []
+
+        if end_date is None:
+            end_date = date.today()
+
+        for transaction in transactions:
+            local_tx_date = self._to_santiago_date(transaction.transaction_date)
+            freq_name = (
+                transaction.transaction_frequency.name
+                if transaction.transaction_frequency
+                else None
             )
-        )
+            freq_lower = freq_name.lower().strip() if freq_name else ""
+
+            if freq_lower == "mensual":
+                current_date = local_tx_date
+                while current_date <= end_date:
+                    if start_date is None or current_date >= start_date:
+                        projected.append(
+                            self._map_to_response_dto(transaction, current_date)
+                        )
+                    current_date = self._next_month_date(
+                        current_date, local_tx_date.day
+                    )
+                continue
+
+            if freq_lower == "semanal":
+                current_date = local_tx_date
+                while current_date <= end_date:
+                    if start_date is None or current_date >= start_date:
+                        projected.append(
+                            self._map_to_response_dto(transaction, current_date)
+                        )
+                    current_date += timedelta(days=7)
+                continue
+
+            if local_tx_date > end_date:
+                continue
+            if start_date is not None and local_tx_date < start_date:
+                continue
+
+            projected.append(self._map_to_response_dto(transaction, local_tx_date))
+
+        projected.sort(key=lambda item: item.transaction_date, reverse=True)
+        total_count = len(projected)
 
         total_pages = math.ceil(total_count / limit) if total_count > 0 else 0
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
 
         meta = PaginationMetaDTO(
             currentPage=page,
@@ -167,7 +214,7 @@ class TransactionsService:
             itemsPerPage=limit,
         )
 
-        data = [self._map_to_response_dto(t) for t in transactions]
+        data = projected[start_idx:end_idx]
 
         return TransactionPaginationResponseDTO(meta=meta, data=data)
 
@@ -175,7 +222,7 @@ class TransactionsService:
         self,
         amount: Decimal,
         frequency_name: str | None,
-        transaction_date: date,
+        transaction_date: date | datetime,
         period_start: date,
         period_end: date,
     ) -> Decimal:
@@ -191,20 +238,22 @@ class TransactionsService:
         Returns:
             The adjusted amount contributed to the period.
         """
-        if transaction_date > period_end:
+        local_tx_date = self._to_santiago_date(transaction_date)
+
+        if local_tx_date > period_end:
             return Decimal("0")
 
         freq_lower = frequency_name.lower().strip() if frequency_name else ""
 
         if freq_lower in ("única", "unica"):
             # One-time: only if within the period
-            if period_start <= transaction_date <= period_end:
+            if period_start <= local_tx_date <= period_end:
                 return amount
             return Decimal("0")
 
         if freq_lower == "mensual":
             # Monthly: count months from max(transaction_date, period_start) to period_end
-            effective_start = max(transaction_date, period_start)
+            effective_start = max(local_tx_date, period_start)
             months = (
                 (period_end.year - effective_start.year) * 12
                 + (period_end.month - effective_start.month)
@@ -216,7 +265,7 @@ class TransactionsService:
 
         if freq_lower == "semanal":
             # Weekly: count weeks from effective_start to period_end
-            effective_start = max(transaction_date, period_start)
+            effective_start = max(local_tx_date, period_start)
             days = (period_end - effective_start).days + 1
             if days <= 0:
                 return Decimal("0")
@@ -224,17 +273,46 @@ class TransactionsService:
             return amount * Decimal(str(weeks))
 
         # Default / null frequency: treat as one-time
-        if period_start <= transaction_date <= period_end:
+        if period_start <= local_tx_date <= period_end:
             return amount
         return Decimal("0")
 
-    def _map_to_response_dto(self, t: Transaction) -> TransactionResponseDTO:
+    def _to_santiago_datetime(self, transaction_date: date | datetime) -> datetime:
+        """Convert a stored transaction timestamp to America/Santiago."""
+        if isinstance(transaction_date, datetime):
+            if transaction_date.tzinfo is None:
+                return transaction_date.replace(tzinfo=SANTIAGO_TZ)
+            return transaction_date.astimezone(SANTIAGO_TZ)
+
+        return datetime.combine(transaction_date, datetime.min.time(), tzinfo=SANTIAGO_TZ)
+
+    def _to_santiago_date(self, transaction_date: date | datetime) -> date:
+        """Return the Chile-local calendar date for a transaction timestamp."""
+        return self._to_santiago_datetime(transaction_date).date()
+
+    def _next_month_date(self, current_date: date, original_day: int) -> date:
+        """Advance a date by one calendar month, clamping to the last valid day."""
+        next_year = current_date.year + (1 if current_date.month == 12 else 0)
+        next_month = 1 if current_date.month == 12 else current_date.month + 1
+        last_day = calendar.monthrange(next_year, next_month)[1]
+        next_day = min(original_day, last_day)
+        return date(next_year, next_month, next_day)
+
+    def _map_to_response_dto(
+        self, t: Transaction, transaction_date: date | datetime | None = None
+    ) -> TransactionResponseDTO:
         """Helper to map Transaction entity to TransactionResponseDTO."""
+        response_date = (
+            transaction_date
+            if isinstance(transaction_date, date)
+            and not isinstance(transaction_date, datetime)
+            else self._to_santiago_date(transaction_date or t.transaction_date)
+        )
         return TransactionResponseDTO(
             transaction_id=t.transaction_id,
             amount=t.amount,
             description=t.description,
-            transaction_date=t.transaction_date,
+            transaction_date=response_date,
             transaction_type_id=t.transaction_type_id,
             transaction_category_id=t.transaction_category_id,
             transaction_frequency_id=t.transaction_frequency_id,

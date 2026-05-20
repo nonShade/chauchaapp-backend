@@ -4,11 +4,34 @@ Transactions module DTOs.
 Handles data transfer formatting for endpoints in the Transactions module.
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
+from zoneinfo import ZoneInfo
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+SANTIAGO_TZ = ZoneInfo("America/Santiago")
+
+
+def parse_local_date(value: Any) -> datetime | None:
+    """Normalize incoming dates to timezone-aware datetimes in Santiago."""
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=SANTIAGO_TZ)
+        return value.astimezone(SANTIAGO_TZ)
+
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time(), tzinfo=SANTIAGO_TZ)
+
+    raise TypeError("transaction_date must be a date, datetime, or ISO string")
 
 
 class IncomeTypeResponseDTO(BaseModel):
@@ -59,7 +82,15 @@ class TransactionCreateDTO(BaseModel):
     transaction_category_id: UUID | None = None
     transaction_frequency_id: UUID | None = None
     description: str | None = None
-    transaction_date: date
+    transaction_date: datetime
+
+    @field_validator("transaction_date", mode="before")
+    @classmethod
+    def _parse_local_date(cls, value: Any) -> datetime:
+        normalized = parse_local_date(value)
+        if normalized is None:
+            raise ValueError("transaction_date is required")
+        return normalized
 
 
 class TransactionUpdateDTO(BaseModel):
@@ -70,7 +101,12 @@ class TransactionUpdateDTO(BaseModel):
     transaction_category_id: UUID | None = None
     transaction_frequency_id: UUID | None = None
     description: str | None = None
-    transaction_date: date | None = None
+    transaction_date: datetime | None = None
+
+    @field_validator("transaction_date", mode="before")
+    @classmethod
+    def _parse_local_date(cls, value: Any) -> datetime | None:
+        return parse_local_date(value)
 
 
 class TransactionResponseDTO(BaseModel):
