@@ -12,6 +12,8 @@ from uuid import UUID
 from app.modules.transactions.dto import (
     CategoryDistributionDTO,
     FinancialSummaryDTO,
+    GroupTransactionPaginationResponseDTO,
+    GroupTransactionResponseDTO,
     IncomeTypeResponseDTO,
     IncomeVsExpensesChartDTO,
     PaginationMetaDTO,
@@ -26,6 +28,7 @@ from app.modules.transactions.dto import (
 from app.modules.transactions.entities import Transaction
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.users.repository import UserRepository
+from app.modules.groups.repository import GroupsRepository
 from app.shared.exceptions import ForbiddenException, NotFoundException
 
 SANTIAGO_TZ = ZoneInfo("America/Santiago")
@@ -34,9 +37,15 @@ SANTIAGO_TZ = ZoneInfo("America/Santiago")
 class TransactionsService:
     """Business logic for transaction entities."""
 
-    def __init__(self, repository: TransactionsRepository, user_repository: UserRepository):
+    def __init__(
+        self,
+        repository: TransactionsRepository,
+        user_repository: UserRepository,
+        groups_repository: GroupsRepository | None = None,
+    ):
         self._repository = repository
         self._user_repository = user_repository
+        self._groups_repository = groups_repository
 
     def get_income_types(self) -> list[IncomeTypeResponseDTO]:
         """Get all available income types.
@@ -467,6 +476,302 @@ class TransactionsService:
 
             # Cap the current month at today so the chart and summary always
             # reflect the same "snapshot as of today".
+            if year == today.year and month_num == today.month:
+                month_end = today
+            elif month_num == 12:
+                month_end = date(year, 12, 31)
+            else:
+                month_end = date(year, month_num + 1, 1) - timedelta(days=1)
+
+            income = Decimal("0")
+            expenses = Decimal("0")
+
+            for t in transactions:
+                freq_name = (
+                    t.transaction_frequency.name
+                    if t.transaction_frequency
+                    else None
+                )
+                amount = self._calculate_frequency_contribution(
+                    t.amount,
+                    freq_name,
+                    t.transaction_date,
+                    month_start,
+                    month_end,
+                )
+                if amount <= 0:
+                    continue
+                type_name = (
+                    t.transaction_type.name.lower().strip()
+                    if t.transaction_type
+                    else ""
+                )
+                if type_name == "ingreso":
+                    income += amount
+                elif type_name == "gasto":
+                    expenses += amount
+
+            labels.append(MONTH_LABELS[month_num])
+            income_series.append(income)
+            expense_series.append(expenses)
+
+        return IncomeVsExpensesChartDTO(
+            labels=labels,
+            income=income_series,
+            expense=expense_series,
+        )
+
+    # ------------------------------------------------------------------
+    # Group Methods
+    # ------------------------------------------------------------------
+
+    def _get_group_user_ids(self, user_id: UUID) -> list[UUID]:
+        """Verify user belongs to a group and return all member IDs."""
+        if not self._groups_repository:
+            raise Exception("GroupsRepository is required for group operations")
+
+        # Check if user is admin
+        group = self._groups_repository.get_group_by_admin(user_id)
+        if not group:
+            # Check if user is a member
+            membership = self._groups_repository.get_membership(user_id)
+            if not membership:
+                raise NotFoundException("No perteneces a ningún grupo familiar")
+            group = self._groups_repository.get_group_by_id(membership.family_group_id)
+            if not group:
+                raise NotFoundException("Grupo familiar no encontrado")
+
+        # Gather all user IDs in the group
+        user_ids = [group.admin_id]
+        for member in group.members:
+            if member.user_id not in user_ids:
+                user_ids.append(member.user_id)
+        return user_ids
+
+    def _map_to_group_response_dto(
+        self, t: Transaction, transaction_date: date | datetime | None = None
+    ) -> GroupTransactionResponseDTO:
+        """Helper to map Transaction entity to GroupTransactionResponseDTO."""
+        response_date = (
+            transaction_date
+            if isinstance(transaction_date, date)
+            and not isinstance(transaction_date, datetime)
+            else self._to_santiago_date(transaction_date or t.transaction_date)
+        )
+        user_name = f"{t.user.first_name} {t.user.last_name}" if t.user else "Desconocido"
+        return GroupTransactionResponseDTO(
+            transaction_id=t.transaction_id,
+            amount=t.amount,
+            description=t.description,
+            transaction_date=response_date,
+            transaction_type_id=t.transaction_type_id,
+            transaction_category_id=t.transaction_category_id,
+            transaction_frequency_id=t.transaction_frequency_id,
+            user_name=user_name.strip(),
+        )
+
+    def get_group_transactions(
+        self,
+        user_id: UUID,
+        page: int = 1,
+        limit: int = 10,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> GroupTransactionPaginationResponseDTO:
+        """Get paginated transactions for the entire family group."""
+        group_user_ids = self._get_group_user_ids(user_id)
+        transactions = self._repository.get_all_group_transactions_eager(group_user_ids)
+        projected: list[GroupTransactionResponseDTO] = []
+
+        if end_date is None:
+            end_date = date.today()
+
+        for transaction in transactions:
+            local_tx_date = self._to_santiago_date(transaction.transaction_date)
+            freq_name = (
+                transaction.transaction_frequency.name
+                if transaction.transaction_frequency
+                else None
+            )
+            freq_lower = freq_name.lower().strip() if freq_name else ""
+
+            if freq_lower == "mensual":
+                current_date = local_tx_date
+                while current_date <= end_date:
+                    if start_date is None or current_date >= start_date:
+                        projected.append(
+                            self._map_to_group_response_dto(transaction, current_date)
+                        )
+                    current_date = self._next_month_date(
+                        current_date, local_tx_date.day
+                    )
+                continue
+
+            if freq_lower == "semanal":
+                current_date = local_tx_date
+                while current_date <= end_date:
+                    if start_date is None or current_date >= start_date:
+                        projected.append(
+                            self._map_to_group_response_dto(transaction, current_date)
+                        )
+                    current_date += timedelta(days=7)
+                continue
+
+            if local_tx_date > end_date:
+                continue
+            if start_date is not None and local_tx_date < start_date:
+                continue
+
+            projected.append(self._map_to_group_response_dto(transaction, local_tx_date))
+
+        projected.sort(key=lambda item: item.transaction_date, reverse=True)
+        total_count = len(projected)
+
+        total_pages = math.ceil(total_count / limit) if total_count > 0 else 0
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+
+        meta = PaginationMetaDTO(
+            currentPage=page,
+            totalPages=total_pages,
+            totalItems=total_count,
+            itemsPerPage=limit,
+        )
+
+        data = projected[start_idx:end_idx]
+
+        return GroupTransactionPaginationResponseDTO(meta=meta, data=data)
+
+    def get_group_financial_summary(
+        self, user_id: UUID, start_date: date | None = None, end_date: date | None = None
+    ) -> FinancialSummaryDTO:
+        """Calculate financial totals for the entire family group."""
+        group_user_ids = self._get_group_user_ids(user_id)
+        if not start_date:
+            start_date = date.today().replace(day=1)
+        if not end_date:
+            end_date = date.today()
+
+        transactions = self._repository.get_all_group_transactions_eager(group_user_ids)
+
+        income = Decimal("0")
+        expenses = Decimal("0")
+
+        for t in transactions:
+            freq_name = (
+                t.transaction_frequency.name if t.transaction_frequency else None
+            )
+            amount = self._calculate_frequency_contribution(
+                t.amount, freq_name, t.transaction_date, start_date, end_date
+            )
+            if amount <= 0:
+                continue
+            type_name = (
+                t.transaction_type.name.lower().strip()
+                if t.transaction_type
+                else ""
+            )
+            if type_name == "ingreso":
+                income += amount
+            elif type_name == "gasto":
+                expenses += amount
+
+        return FinancialSummaryDTO(
+            total_income=income,
+            total_expenses=expenses,
+            total_balance=income - expenses,
+        )
+
+    def get_group_expense_distribution(
+        self, user_id: UUID, start_date: date | None = None, end_date: date | None = None
+    ) -> list[CategoryDistributionDTO]:
+        """Get total expenses by category for the entire family group."""
+        group_user_ids = self._get_group_user_ids(user_id)
+        if not start_date:
+            start_date = date.today().replace(day=1)
+        if not end_date:
+            end_date = date.today()
+
+        transactions = self._repository.get_all_group_transactions_eager(group_user_ids)
+
+        category_totals: dict[UUID | None, dict] = {}
+        for t in transactions:
+            type_name = (
+                t.transaction_type.name.lower().strip()
+                if t.transaction_type
+                else ""
+            )
+            if type_name != "gasto":
+                continue
+
+            freq_name = (
+                t.transaction_frequency.name if t.transaction_frequency else None
+            )
+            amount = self._calculate_frequency_contribution(
+                t.amount, freq_name, t.transaction_date, start_date, end_date
+            )
+            if amount <= 0:
+                continue
+
+            cat_id = t.transaction_category_id
+            cat_name = t.category.name if t.category else "Sin categoría"
+            if cat_id not in category_totals:
+                category_totals[cat_id] = {"name": cat_name, "total": Decimal("0")}
+            category_totals[cat_id]["total"] += amount
+
+        total_expense = sum(v["total"] for v in category_totals.values())
+
+        distribution = []
+        for cat_id, data in category_totals.items():
+            percentage = (
+                (float(data["total"]) / float(total_expense) * 100)
+                if total_expense > 0
+                else 0
+            )
+            distribution.append(
+                CategoryDistributionDTO(
+                    category_id=cat_id,
+                    category_name=data["name"],
+                    total_amount=data["total"],
+                    percentage=round(percentage, 2),
+                )
+            )
+
+        distribution.sort(key=lambda x: x.total_amount, reverse=True)
+        return distribution
+
+    def get_group_income_vs_expenses(self, user_id: UUID) -> IncomeVsExpensesChartDTO:
+        """Compare income vs expenses over the last 6 months for the family group."""
+        group_user_ids = self._get_group_user_ids(user_id)
+        
+        MONTH_LABELS = {
+            1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr",
+            5: "May", 6: "Jun", 7: "Jul", 8: "Ago",
+            9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic",
+        }
+
+        transactions = self._repository.get_all_group_transactions_eager(group_user_ids)
+
+        today = date.today()
+        months: list[tuple[int, int]] = []
+        for i in range(5, -1, -1):
+            m = today.month - i
+            y = today.year
+            while m < 1:
+                m += 12
+                y -= 1
+            while m > 12:
+                m -= 12
+                y += 1
+            months.append((y, m))
+
+        labels: list[str] = []
+        income_series: list[Decimal] = []
+        expense_series: list[Decimal] = []
+
+        for year, month_num in months:
+            month_start = date(year, month_num, 1)
+
             if year == today.year and month_num == today.month:
                 month_end = today
             elif month_num == 12:

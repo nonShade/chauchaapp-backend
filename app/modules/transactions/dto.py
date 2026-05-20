@@ -139,6 +139,19 @@ class TransactionPaginationResponseDTO(BaseModel):
     data: list[TransactionResponseDTO]
 
 
+class GroupTransactionResponseDTO(TransactionResponseDTO):
+    """Schema for group transaction record response. Includes user name."""
+
+    user_name: str
+
+
+class GroupTransactionPaginationResponseDTO(BaseModel):
+    """Schema for paginated group transaction list response."""
+
+    meta: PaginationMetaDTO
+    data: list[GroupTransactionResponseDTO]
+
+
 class FinancialSummaryDTO(BaseModel):
     """Schema for general financial summary (income, expenses, balance)."""
 

@@ -212,8 +212,32 @@ class TransactionsRepository:
                 joinedload(Transaction.transaction_type),
                 joinedload(Transaction.category),
                 joinedload(Transaction.transaction_frequency),
+                joinedload(Transaction.user),
             )
             .filter(Transaction.user_id == user_id)
+            .all()
+        )
+
+    def get_all_group_transactions_eager(self, user_ids: list[UUID]) -> list[Transaction]:
+        """Get all transactions for a list of users with eager-loaded relationships.
+
+        This avoids N+1 queries when accessing transaction_type, category,
+        transaction_frequency, and user relationships.
+
+        Returns:
+            A list of Transaction entities with relationships populated.
+        """
+        from sqlalchemy.orm import joinedload
+
+        return (
+            self._session.query(Transaction)
+            .options(
+                joinedload(Transaction.transaction_type),
+                joinedload(Transaction.category),
+                joinedload(Transaction.transaction_frequency),
+                joinedload(Transaction.user),
+            )
+            .filter(Transaction.user_id.in_(user_ids))
             .all()
         )
 

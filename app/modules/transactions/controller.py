@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.modules.transactions.dto import (
     CategoryDistributionDTO,
     FinancialSummaryDTO,
+    GroupTransactionPaginationResponseDTO,
     IncomeTypeResponseDTO,
     IncomeVsExpensesChartDTO,
     TransactionCategoryResponseDTO,
@@ -23,6 +24,7 @@ from app.modules.transactions.dto import (
 )
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.transactions.service import TransactionsService
+from app.modules.groups.repository import GroupsRepository
 from app.modules.users.entities import User
 from app.modules.users.repository import UserRepository
 from app.shared.database import get_db
@@ -35,7 +37,8 @@ def _get_transactions_service(db: Session = Depends(get_db)) -> TransactionsServ
     """Dependency to build transactions service with its database repository."""
     repository = TransactionsRepository(db)
     user_repo = UserRepository(db)
-    return TransactionsService(repository, user_repo)
+    groups_repo = GroupsRepository(db)
+    return TransactionsService(repository, user_repo, groups_repo)
 
 
 @router.get(
@@ -194,3 +197,74 @@ def get_income_vs_expenses(
 ):
     """Get monthly income vs expenses comparison for the current user."""
     return service.get_income_vs_expenses(user.user_id)
+
+
+# ---------------------------------------------------------------------------
+# Family Group Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/family-group",
+    response_model=GroupTransactionPaginationResponseDTO,
+    summary="Listar transacciones del grupo familiar",
+    description="Obtiene la lista paginada de transacciones de todos los miembros del grupo.",
+)
+def list_group_transactions(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+    user: User = Depends(get_current_user),
+    service: TransactionsService = Depends(_get_transactions_service),
+):
+    """List paginated transactions for the current user's family group."""
+    return service.get_group_transactions(
+        user.user_id, page, limit, start_date, end_date
+    )
+
+
+@router.get(
+    "/family-group/summary",
+    response_model=FinancialSummaryDTO,
+    summary="Resumen financiero del grupo",
+    description="Obtiene el balance total, ingresos y gastos del periodo actual para todo el grupo.",
+)
+def get_group_financial_summary(
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+    user: User = Depends(get_current_user),
+    service: TransactionsService = Depends(_get_transactions_service),
+):
+    """Get financial summary for the current user's family group."""
+    return service.get_group_financial_summary(user.user_id, start_date, end_date)
+
+
+@router.get(
+    "/family-group/analytics/distribution",
+    response_model=list[CategoryDistributionDTO],
+    summary="Distribución por categorías del grupo",
+    description="Obtiene el desglose de gastos por categoría y su porcentaje del total para el grupo.",
+)
+def get_group_expense_distribution(
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+    user: User = Depends(get_current_user),
+    service: TransactionsService = Depends(_get_transactions_service),
+):
+    """Get expense distribution for the current user's family group."""
+    return service.get_group_expense_distribution(user.user_id, start_date, end_date)
+
+
+@router.get(
+    "/family-group/analytics/income-vs-expenses",
+    response_model=IncomeVsExpensesChartDTO,
+    summary="Ingresos vs Gastos del grupo",
+    description="Obtiene la comparativa mensual de ingresos y gastos de los últimos 6 meses para el grupo.",
+)
+def get_group_income_vs_expenses(
+    user: User = Depends(get_current_user),
+    service: TransactionsService = Depends(_get_transactions_service),
+):
+    """Get monthly income vs expenses comparison for the current user's family group."""
+    return service.get_group_income_vs_expenses(user.user_id)

@@ -269,7 +269,7 @@ FROM "user" u
 JOIN family_group fg ON fg.name = 'Grupo Familiar Test'
 JOIN "user" admin ON admin.user_id = fg.admin_id
 WHERE admin.email = 'test_login@chauchaapp.cl'
-  AND u.email IN ('test_login@chauchaapp.cl', 'test_family@chauchaapp.cl')
+  AND u.email IN ('test_login@chauchaapp.cl', 'test_family@chauchaapp.cl', 'maria.gonzalez@test.cl', 'carlos.munoz@test.cl')
   AND NOT EXISTS (
       SELECT 1
       FROM group_member gm
