@@ -323,11 +323,18 @@ CREATE TABLE IF NOT EXISTS user_progress (
     progress_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES "user"(user_id),
     educational_module_id UUID NOT NULL REFERENCES educational_module(educational_module_id),
-    status VARCHAR(45),
+    status VARCHAR(45) NOT NULL DEFAULT 'not_started',
+    progress_percentage INT NOT NULL DEFAULT 0,
+    completed_sections JSON NOT NULL DEFAULT '[]'::json,
+    quiz_attempts JSON NOT NULL DEFAULT '[]'::json,
+    started_at TIMESTAMP,
+    last_accessed_at TIMESTAMP,
+    completed_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
-    updated_by UUID
+    updated_by UUID,
+    UNIQUE(user_id, educational_module_id)
 );
 
 

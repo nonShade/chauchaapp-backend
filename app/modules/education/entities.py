@@ -9,8 +9,9 @@ Tables:
 """
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -94,6 +95,7 @@ class UserProgress(Base, AuditMixin):
     """Tracks a user's progress through an educational module."""
 
     __tablename__ = "user_progress"
+    __table_args__ = (UniqueConstraint("user_id", "educational_module_id"),)
 
     progress_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -108,7 +110,19 @@ class UserProgress(Base, AuditMixin):
         ForeignKey("educational_module.educational_module_id"),
         nullable=False,
     )
-    status: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(45), nullable=False, default="not_started"
+    )
+    progress_percentage: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    completed_sections: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    quiz_attempts: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="user_progress")

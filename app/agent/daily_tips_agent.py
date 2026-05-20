@@ -47,8 +47,9 @@ class DailyTipBatch(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         if len(self.tips) != 7:
-            raise ValueError(f"Se esperaban exactamente 7 tips, se recibieron: {
-                             len(self.tips)}")
+            raise ValueError(
+                f"Se esperaban exactamente 7 tips, se recibieron: {len(self.tips)}"
+            )
 
 
 class DailyTipsAgent:
@@ -71,6 +72,23 @@ class DailyTipsAgent:
         "Ahorro",
         "Inversiones",
     ]
+    ECONOMIC_PSYCHOLOGY_FRAMEWORK = """
+    BASE DE PSICOLOGÍA ECONÓMICA (Chile, basada en CEPEC UFRO y lineamientos internos):
+    - Diferenciar necesidad vs deseo antes de comprar.
+    - Regla de espera: 24 horas (o 30 días en compras de alto monto) para compras no esenciales.
+    - Registrar emoción asociada a cada compra para detectar gatillos (estrés, tristeza, aburrimiento, euforia).
+    - Presupuesto hedónico: asignar un monto fijo y pequeño para "gustitos" sin romper el plan financiero.
+    - Aumentar fricción al gastar online: eliminar tarjetas guardadas, desactivar compras en 1 clic y notificaciones.
+    - Preferir efectivo para compras sensibles al impulso (aumenta el "dolor de pagar").
+    - Usar listas y presupuesto previo para reducir compras impulsivas.
+    - Cuidar sesgos conductuales: efecto manada, sesgo del presente, anclaje y FOMO por escasez/urgencia.
+    - Técnicas de autocontrol: 10-10-10 y toma de perspectiva en tercera persona ("técnica del teatro").
+    - Evitar decisiones financieras complejas con fatiga mental alta.
+    - Resistir neuromarketing en retail: caja, rutas de tienda, estímulos sensoriales y productos agrupados.
+    - En temporadas de alta emoción (rebajas/fiestas), definir tope de gasto ANTES de mirar ofertas.
+    - Fórmula recomendada del presupuesto: ingreso total - ahorro = ingreso disponible.
+    - Carga de deuda mensual recomendada: no superar 40% del ingreso neto.
+    """
 
     def __init__(self):
         """Inicializa el agente con las claves de API de Nvidia con fallback."""
@@ -119,6 +137,8 @@ class DailyTipsAgent:
         )
         instructions = f"""Eres un experto en finanzas personales para Chile.
             Categorías permitidas: {', '.join(self.ALLOWED_CATEGORIES)}
+            Marco de psicología económica que DEBES usar:
+            {self.ECONOMIC_PSYCHOLOGY_FRAMEWORK}
 
             REGLAS ABSOLUTAS:
             1. Todos los tips deben ser específicos del contexto económico chileno (CLP, AFP, SII, UF).
@@ -127,7 +147,9 @@ class DailyTipsAgent:
             3. Si no tienes datos actualizados de una cifra, omite el número o usa una referencia
             genérica como "según el valor vigente de la UF".
             4. Usa SOLO las categorías permitidas.
-            5. Responde SIEMPRE con el JSON exacto requerido, sin texto adicional."""
+            5. Cada tip debe incluir al menos una estrategia conductual concreta y accionable.
+            6. Evita consejos genéricos: debe ser aplicable hoy por una persona real.
+            7. Responde SIEMPRE con el JSON exacto requerido, sin texto adicional."""
 
         agent = Agent(
             name="DailyTipsAgent",
@@ -156,9 +178,14 @@ class DailyTipsAgent:
         prompt = f"""CONTEXTO ECONÓMICO REAL (obtenido con búsqueda web, NO inventado):
         {context}
 
+        MARCO CONDUCTUAL OBLIGATORIO:
+        {self.ECONOMIC_PSYCHOLOGY_FRAMEWORK}
+
         INSTRUCCIÓN: Genera 1 tip financiero para Chile.
         - Usa SOLO los datos del contexto de arriba
         - Si el contexto dice "dato no encontrado" para algo, NO lo incluyas en el tip
+        - Integra al menos 1 estrategia de psicología económica del marco conductual
+        - El tip debe incluir una micro-acción concreta para hoy
         - Categoría DEBE ser una de: {categories_str}
         - Responde SOLO con JSON, sin texto adicional"""
 
@@ -189,11 +216,17 @@ class DailyTipsAgent:
         prompt = f"""CONTEXTO ECONÓMICO REAL DE CHILE (obtenido con búsqueda web):
         {context}
 
+        MARCO CONDUCTUAL OBLIGATORIO:
+        {self.ECONOMIC_PSYCHOLOGY_FRAMEWORK}
+
         INSTRUCCIÓN: Genera exactamente 7 tips financieros para Chile (lunes a domingo).
 
         REGLAS ESTRICTAS:
         - Usa ÚNICAMENTE los números del contexto de arriba
         - Si el contexto marca "dato no encontrado", NO uses ese número
+        - Cada tip debe aplicar al menos 1 estrategia de psicología económica
+        - No repitas la misma estrategia principal más de 2 veces en la semana
+        - Incluye una micro-acción concreta en cada tip
         - Varía las categorías durante la semana
         - Categorías permitidas: {categories_str}
         - Asigna day_of_week de 0 (Lunes) a 6 (Domingo)

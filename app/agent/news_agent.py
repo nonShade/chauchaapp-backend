@@ -287,7 +287,7 @@ class NewsAnalysisAgentOptimized:
     ) -> list[dict]:
         """Analiza noticias CON PARALELIZACIÓN y batch insert a BD."""
         from app.modules.news.entities import News, NewsTag, NewsTagMap, PersonalizedAnalysisNews
-        from sqlalchemy import func
+        from sqlalchemy import insert
 
         if not news_items:
             return []
@@ -383,10 +383,7 @@ class NewsAnalysisAgentOptimized:
 
         if news_to_insert:
             start = time.perf_counter()
-            result = db_session.execute(
-                News.__table__.insert(),
-                news_to_insert
-            )
+            result = db_session.execute(insert(News), news_to_insert)
             db_session.flush()
             elapsed = time.perf_counter() - start
             self._track_timing("bulk_insert_news", elapsed)
@@ -413,10 +410,7 @@ class NewsAnalysisAgentOptimized:
             tags_to_create = [t for t in unique_tags if t["name"] not in existing_tag_map]
 
             if tags_to_create:
-                result = db_session.execute(
-                    NewsTag.__table__.insert(),
-                    tags_to_create
-                )
+                result = db_session.execute(insert(NewsTag), tags_to_create)
                 db_session.flush()
 
             elapsed = time.perf_counter() - start
@@ -448,10 +442,7 @@ class NewsAnalysisAgentOptimized:
                         })
 
         if tag_maps_bulk:
-            db_session.execute(
-                NewsTagMap.__table__.insert(),
-                tag_maps_bulk
-            )
+            db_session.execute(insert(NewsTagMap), tag_maps_bulk)
             db_session.flush()
             logger.info(f"    {len(tag_maps_bulk)} tag_maps insertados")
 
@@ -482,10 +473,7 @@ class NewsAnalysisAgentOptimized:
                     })
 
         if analyses_bulk:
-            db_session.execute(
-                PersonalizedAnalysisNews.__table__.insert(),
-                analyses_bulk
-            )
+            db_session.execute(insert(PersonalizedAnalysisNews), analyses_bulk)
             db_session.flush()
 
         elapsed = time.perf_counter() - start
@@ -662,10 +650,18 @@ class NewsAnalysisAgentOptimized:
         cutoff = datetime.now().timestamp() - (30 * 24 * 3600)
 
         for feed in feeds:
-            if isinstance(feed, Exception):
+            if isinstance(feed, BaseException):
                 continue
-            source = feed.feed.get("title", "desconocida")
-            for entry in feed.entries:
+
+            feed_meta = getattr(feed, "feed", {})
+            entries = getattr(feed, "entries", [])
+            source = (
+                feed_meta.get("title", "desconocida")
+                if hasattr(feed_meta, "get")
+                else "desconocida"
+            )
+
+            for entry in entries:
                 mapped = map_entry(entry, source)
                 pub_time = mapped.get("published") or 0
 
