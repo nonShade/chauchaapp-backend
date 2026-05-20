@@ -276,6 +276,8 @@ def seed_family_group(session):
     """Seed family group for shared cartola testing."""
     admin = session.query(User).filter_by(email="test_login@chauchaapp.cl").first()
     member = session.query(User).filter_by(email="test_family@chauchaapp.cl").first()
+    member2 = session.query(User).filter_by(email="maria.gonzalez@test.cl").first()
+    member3 = session.query(User).filter_by(email="carlos.munoz@test.cl").first()
     if not admin or not member:
         return None
 
@@ -289,7 +291,9 @@ def seed_family_group(session):
         session.add(group)
         session.flush()
 
-    for user in (admin, member):
+    for user in (admin, member, member2, member3):
+        if not user:
+            continue
         existing = (
             session.query(GroupMember)
             .filter_by(user_id=user.user_id, family_group_id=group.family_group_id)
