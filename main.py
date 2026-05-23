@@ -14,6 +14,7 @@ from app.modules.auth.controller import router as auth_router
 from app.modules.groups.controller import router as groups_router
 from app.modules.notifications.controller import router as notifications_router
 from app.modules.education.controller import router as education_router
+from app.modules.financial_data.controller import router as financial_planning_router
 import os
 
 from dotenv import load_dotenv
@@ -58,6 +59,7 @@ app.include_router(users_router)
 app.include_router(groups_router)
 app.include_router(notifications_router)
 app.include_router(education_router)
+app.include_router(financial_planning_router)
 
 
 # ---------------------------------------------------------------------------

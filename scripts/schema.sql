@@ -201,6 +201,23 @@ CREATE TABLE IF NOT EXISTS credit_product (
     updated_by UUID
 );
 
+CREATE TABLE IF NOT EXISTS financial_planning_tip (
+    planning_tip_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    icon VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    key_points JSON NOT NULL,
+    action_items JSON NOT NULL,
+    resources JSON NOT NULL,
+    generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID,
+    updated_by UUID
+);
+
 
 -- ============================================================
 -- TRANSACTIONS MODULE
@@ -461,6 +478,7 @@ BEGIN
             'group_join_request',
             'bank',
             'credit_product',
+            'financial_planning_tip',
             '"transaction"',
             'news',
             'news_tag',
