@@ -46,6 +46,7 @@ class QuestionDTO(BaseModel):
     question: str
     options: list[str] | None = None
     explanation: str | None = None
+    correctAnswer: int | None = None
 
 
 class QuizDTO(BaseModel):

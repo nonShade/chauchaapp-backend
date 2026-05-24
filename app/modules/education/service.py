@@ -279,6 +279,7 @@ class EducationService:
                         "question": question.question,
                         "options": question.options,
                         "explanation": question.explanation,
+                        "correctAnswer": question.correctAnswer,
                     }
                     for question in module.quiz.questions
                 ],
