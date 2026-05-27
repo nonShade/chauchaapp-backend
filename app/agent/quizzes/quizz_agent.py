@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -181,9 +182,38 @@ class QuizzAgent:
             instructions=instructions,
             description="Agente para crear y validar módulos educativos usando GROQ",
             session_id=self.session_id,
-            markdown=True,
+            markdown=False,
         )
         return agent
+
+    def _parse_json_content(self, content: str) -> dict | list:
+        raw_content = content.strip()
+        fenced_match = re.search(r"```(?:json)?\s*(.*?)```", raw_content, re.DOTALL | re.IGNORECASE)
+        if fenced_match:
+            raw_content = fenced_match.group(1).strip()
+
+        start_candidates = [raw_content.find("{"), raw_content.find("[")]
+        start_candidates = [value for value in start_candidates if value != -1]
+        if start_candidates:
+            start_index = min(start_candidates)
+            end_index = max(raw_content.rfind("}"), raw_content.rfind("]"))
+            if end_index > start_index:
+                raw_content = raw_content[start_index : end_index + 1]
+
+        raw_content = re.sub(r",\s*([}\]])", r"\1", raw_content)
+
+        try:
+            parsed = json.loads(raw_content)
+        except json.JSONDecodeError as exc:
+            try:
+                parsed = ast.literal_eval(raw_content)
+            except Exception as eval_exc:
+                raise RuntimeError(
+                    f"Failed to parse agent response: {eval_exc}"
+                ) from exc
+        if not isinstance(parsed, (dict, list)):
+            raise RuntimeError("Agent response parsed to unsupported type")
+        return parsed
 
     def _get_module_context(self, topic: str, country: str = "Chile") -> str:
         api_key = self._get_nvidia_api_key()
@@ -192,14 +222,15 @@ class QuizzAgent:
             tools=[TavilyTools()],
             model=Nvidia(id="qwen/qwen3-coder-480b-a35b-instruct", api_key=api_key),
             instructions=(
-                "Tu unica funcion es buscar informacion con web_search. "
+                "Tu unica funcion es buscar informacion con web_search_using_tavily. "
+                "Usa EXACTAMENTE esa herramienta y nombre. "
                 "No respondas con memoria previa. "
                 "Si no encuentras un dato, indicalo como 'dato no encontrado'."
             ),
         )
 
         response = search_agent.run(
-            f"""Usa web_search para buscar AHORA mismo fuentes confiables sobre:
+            f"""Usa web_search_using_tavily para buscar AHORA mismo fuentes confiables sobre:
             1. conceptos clave de {topic} en finanzas personales
             2. definiciones claras y actuales de terminos esenciales
             3. buenas practicas y riesgos frecuentes
@@ -367,6 +398,9 @@ class QuizzAgent:
         - Incluye secciones con ids unicos, contenido claro y coherente.
         - El quiz debe tener preguntas sin ambiguedad y respuestas correctas.
         - Responde SOLO con JSON valido para el esquema Module.
+        - Usa comillas dobles en todas las claves y strings.
+        - No uses comillas simples ni comentarios.
+        - No uses markdown ni fences de codigo.
         - Incluye SIEMPRE estos campos obligatorios a nivel raiz:
           id, slug, title, description, level, estimatedTimeMinutes, category,
           tags, topicsCount, createdAt, learningObjectives, content, topics, quiz.
@@ -377,32 +411,46 @@ class QuizzAgent:
           question, options (si aplica), correctAnswer (si aplica), explanation.
         """
 
-        response = self.agent.run(prompt)
-        content = response.content
-        if content is None:
-            raise RuntimeError("Agent returned no content")
+        last_error: Exception | None = None
+        for _attempt in range(3):
+            response = self.agent.run(prompt, output_schema=Module)
+            content = response.content
+            if content is None:
+                last_error = RuntimeError("Agent returned no content")
+                continue
 
-        if isinstance(content, str):
-            parsed = json.loads(content)
+            if isinstance(content, Module):
+                return content
+
+            if isinstance(content, str):
+                try:
+                    parsed = self._parse_json_content(content)
+                except RuntimeError as exc:
+                    last_error = exc
+                    continue
+            else:
+                parsed = (
+                    content.model_dump() if hasattr(content, "model_dump") else content
+                )
+
             if isinstance(parsed, dict) and parsed.get("error"):
-                raise RuntimeError(f"Agent error: {parsed['error']}")
+                last_error = RuntimeError(f"Agent error: {parsed['error']}")
+                continue
+
             normalized = (
                 self._normalize_generated_module(parsed, topic=topic, level=level)
                 if isinstance(parsed, dict)
                 else parsed
             )
-            return Module.parse_obj(normalized)
+            try:
+                return Module.parse_obj(normalized)
+            except Exception as exc:
+                last_error = exc
+                continue
 
-        parsed = content.model_dump() if hasattr(content, "model_dump") else content
-        if isinstance(parsed, dict) and parsed.get("error"):
-            raise RuntimeError(f"Agent error: {parsed['error']}")
-
-        normalized = (
-            self._normalize_generated_module(parsed, topic=topic, level=level)
-            if isinstance(parsed, dict)
-            else parsed
+        raise RuntimeError(
+            f"Failed to generate module after 3 attempts: {last_error}"
         )
-        return Module.parse_obj(normalized)
 
     def _default_modules_data(self) -> list[dict]:
         return [
@@ -652,7 +700,7 @@ class QuizzAgent:
             raise RuntimeError("Agent returned no content")
         try:
             if isinstance(content, str):
-                parsed = json.loads(content)
+                parsed = self._parse_json_content(content)
             else:
                 parsed = (
                     content.model_dump() if hasattr(content, "model_dump") else content
