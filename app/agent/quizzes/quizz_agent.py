@@ -172,6 +172,7 @@ class QuizzAgent:
         instructions = (
             "Eres un asistente para generar y validar módulos educativos financieros. "
             "Solo puedes usar el contexto provisto. "
+            "Prioriza preguntas practicas basadas en escenarios reales del modulo. "
             "Devuelve SOLO JSON cuando se solicite un módulo, sin texto adicional."
         )
         tools = []
@@ -348,10 +349,10 @@ class QuizzAgent:
                 {
                     "id": "q1",
                     "type": "single_choice",
-                    "question": f"Que es {topic}?",
-                    "options": ["Definicion correcta", "Definicion incorrecta"],
+                    "question": f"Tienes una situacion real relacionada con {topic}. Que accion tomas primero?",
+                    "options": ["Accion correcta", "Accion incorrecta"],
                     "correctAnswer": 0,
-                    "explanation": "Concepto base del modulo.",
+                    "explanation": "Aplica el concepto en un caso real y prioriza la accion correcta.",
                 }
             ]
 
@@ -397,6 +398,9 @@ class QuizzAgent:
         - El quiz debe tener entre 8 y 12 preguntas.
         - Incluye secciones con ids unicos, contenido claro y coherente.
         - El quiz debe tener preguntas sin ambiguedad y respuestas correctas.
+        - Cada pregunta debe ser practica: escenario real del modulo + decision/accion.
+        - Evita preguntas teoricas o definiciones directas.
+        - La explicacion debe dar feedback practico y conectar con la seccion del modulo.
         - Responde SOLO con JSON valido para el esquema Module.
         - Usa comillas dobles en todas las claves y strings.
         - No uses comillas simples ni comentarios.
@@ -511,26 +515,26 @@ class QuizzAgent:
                         {
                             "id": "q1",
                             "type": "single_choice",
-                            "question": "Que incluye el CAE?",
+                            "question": "Estas comparando dos creditos con la misma cuota mensual, pero CAE distinto. Que haces primero para decidir?",
                             "options": [
-                                "Solo la tasa de interes",
-                                "Tasa, seguros, comisiones y gastos asociados",
-                                "Solo comisiones",
+                                "Comparo el CAE y costos asociados totales",
+                                "Elijo el que tenga la cuota mas baja sin revisar costos",
+                                "Elijo el que tenga mas publicidad",
                             ],
-                            "correctAnswer": 1,
-                            "explanation": "El CAE considera todos los costos asociados al credito.",
+                            "correctAnswer": 0,
+                            "explanation": "Aplicas el CAE para comparar el costo total real del credito.",
                         },
                         {
                             "id": "q2",
                             "type": "single_choice",
-                            "question": "Que diferencia hay entre tasa nominal y efectiva?",
+                            "question": "Necesitas un credito y te ofrecen tasa nominal baja pero plazo largo. Que accion te ayuda a decidir mejor?",
                             "options": [
-                                "La efectiva incluye capitalizacion de intereses",
-                                "La nominal siempre es mayor a la efectiva",
-                                "Son exactamente iguales",
+                                "Calcular el total pagado y comparar con un plazo mas corto",
+                                "Aceptar de inmediato por la tasa nominal baja",
+                                "Elegir el plazo mas largo solo por cuota baja",
                             ],
                             "correctAnswer": 0,
-                            "explanation": "La tasa efectiva considera el interes sobre interes.",
+                            "explanation": "Comparar total pagado y plazo muestra el impacto real en intereses.",
                         },
                     ],
                 },
@@ -585,22 +589,26 @@ class QuizzAgent:
                         {
                             "id": "q1",
                             "type": "single_choice",
-                            "question": "Que porcentaje propone la regla 50/30/20 para el ahorro?",
-                            "options": ["10%", "20%", "30%"],
-                            "correctAnswer": 1,
-                            "explanation": "La regla sugiere ahorrar o pagar deudas con el 20%.",
+                            "question": "Recibes tu sueldo y quieres aplicar la regla 50/30/20. Cual es tu primer paso?",
+                            "options": [
+                                "Separar el 20% para ahorro o deuda antes de gastar",
+                                "Gastar primero y ahorrar lo que quede",
+                                "Asignar todo a deseos porque es inicio de mes",
+                            ],
+                            "correctAnswer": 0,
+                            "explanation": "Separar el ahorro primero hace aplicable la regla en la vida real.",
                         },
                         {
                             "id": "q2",
                             "type": "single_choice",
-                            "question": "Cual es el primer paso para crear un presupuesto?",
+                            "question": "Al hacer tu presupuesto, detectas que tus gastos variables suben cada semana. Que accion practica tomas?",
                             "options": [
-                                "Definir tus metas de ahorro",
-                                "Listar ingresos y gastos",
-                                "Pedir un credito",
+                                "Revisar gastos semanalmente y ajustar categorias",
+                                "Ignorar el problema hasta fin de mes",
+                                "Pedir un credito para cubrir el exceso",
                             ],
-                            "correctAnswer": 1,
-                            "explanation": "Sin conocer tus ingresos y gastos no puedes presupuestar.",
+                            "correctAnswer": 0,
+                            "explanation": "Revisar seguido permite corregir el presupuesto antes de salirte del plan.",
                         },
                     ],
                 },
@@ -692,6 +700,9 @@ class QuizzAgent:
     def generate_quiz_from_module(self, module: Module) -> dict:
         prompt = (
             f"Genera un JSON con la estructura completa de quiz para el módulo '{module.title}'. "
+            "Usa el contenido del modulo para crear preguntas practicas basadas en escenarios reales. "
+            "Evita definiciones directas. Cada pregunta debe pedir una decision o accion. "
+            "La explicacion debe dar feedback practico y conectar con una seccion o tip. "
             "Incluye id, title, questionsCount, passingScore y questions. Responde SOLO con JSON."
         )
         response = self.agent.run(prompt)
