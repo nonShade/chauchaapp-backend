@@ -215,6 +215,10 @@ class TransactionsRepository:
                 joinedload(Transaction.user),
             )
             .filter(Transaction.user_id == user_id)
+            .filter(
+                (Transaction.is_group_transaction == False)
+                | (Transaction.is_group_transaction.is_(None))
+            )
             .all()
         )
 
@@ -238,6 +242,7 @@ class TransactionsRepository:
                 joinedload(Transaction.user),
             )
             .filter(Transaction.user_id.in_(user_ids))
+            .filter(Transaction.is_group_transaction == True)
             .all()
         )
 

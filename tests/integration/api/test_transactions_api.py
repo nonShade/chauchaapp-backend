@@ -112,7 +112,7 @@ def test_list_transactions_api(client: TestClient, mock_db: MagicMock):
     )
     
     # Mock the eager-load query path
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [tx]
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [tx]
 
     response = client.get("/v1/transactions/individual?page=1&limit=10")
     
@@ -145,7 +145,7 @@ def test_get_financial_summary_api(client: TestClient, mock_db: MagicMock):
     expense_tx.transaction_frequency = None
 
     # Mock the eager-load query path
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [
         income_tx, expense_tx
     ]
 

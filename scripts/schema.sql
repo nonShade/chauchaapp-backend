@@ -213,6 +213,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     transaction_type_id UUID NOT NULL REFERENCES transaction_type(transaction_type_id),
     transaction_category_id UUID REFERENCES transaction_category(transaction_category_id),
     transaction_frequency_id UUID REFERENCES transaction_frequency(transaction_frequency_id),
+    is_group_transaction BOOLEAN NOT NULL DEFAULT FALSE,
     amount DECIMAL(12, 2) NOT NULL,
     description VARCHAR(255),
     transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,

@@ -54,7 +54,7 @@ def test_list_group_transactions_api(client: TestClient, mock_db: MagicMock):
     # Let's mock the specific repository method instead of the DB session to make it easier
     # Or we can just mock the whole DB chain. We'll mock the DB chain.
     # The transactions query ends with .all()
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [tx]
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [tx]
 
     response = client.get("/v1/transactions/family-group?page=1&limit=10")
     
@@ -85,7 +85,7 @@ def test_get_group_financial_summary_api(client: TestClient, mock_db: MagicMock)
     expense_tx.transaction_frequency = None
 
     # Mock the eager-load query path
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [
         income_tx, expense_tx
     ]
 
@@ -111,7 +111,7 @@ def test_get_group_expense_distribution_api(client: TestClient, mock_db: MagicMo
     expense_tx.category = MagicMock()
     expense_tx.category.name = "Transporte"
 
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [
         expense_tx
     ]
 
@@ -136,7 +136,7 @@ def test_get_group_income_vs_expenses_api(client: TestClient, mock_db: MagicMock
     income_tx.transaction_type.name = "ingreso"
     income_tx.transaction_frequency = None
 
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [
         income_tx
     ]
 

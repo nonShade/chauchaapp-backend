@@ -346,6 +346,7 @@ def seed_transactions(session, family_group):
         all_transactions.append(Transaction(
             user_id=user.user_id,
             family_group_id=family_group_id,
+            is_group_transaction=bool(family_group_id),
             amount=Decimal(str(amount)),
             transaction_type_id=tx_type.transaction_type_id,
             transaction_category_id=category.transaction_category_id,
@@ -397,7 +398,7 @@ def seed_transactions(session, family_group):
             amount,
             description,
             tx_date,
-            family_group_id=family_group_id,
+            family_group_id=None,
         )
 
     for tx_type, category, frequency, amount, description, tx_date in test_login_transactions:

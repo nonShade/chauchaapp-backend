@@ -96,12 +96,27 @@ class TransactionsService:
         self, user_id: UUID, data: TransactionCreateDTO
     ) -> TransactionResponseDTO:
         """Create a new transaction for the user."""
+        family_group_id = None
+        if getattr(data, "is_group_transaction", False):
+            if not self._groups_repository:
+                raise Exception("GroupsRepository is required for group operations")
+            group = self._groups_repository.get_group_by_admin(user_id)
+            if not group:
+                membership = self._groups_repository.get_membership(user_id)
+                if not membership:
+                    raise NotFoundException("No perteneces a ningún grupo familiar")
+                family_group_id = membership.family_group_id
+            else:
+                family_group_id = group.family_group_id
+
         transaction = Transaction(
             user_id=user_id,
+            family_group_id=family_group_id,
             amount=data.amount,
             transaction_type_id=data.transaction_type_id,
             transaction_category_id=data.transaction_category_id,
             transaction_frequency_id=data.transaction_frequency_id,
+            is_group_transaction=data.is_group_transaction,
             description=data.description,
             transaction_date=data.transaction_date,
         )
@@ -119,8 +134,25 @@ class TransactionsService:
         if transaction.user_id != user_id:
             raise ForbiddenException("No puedes editar una transacción que no te pertenece")
 
+        update_data = data.model_dump(exclude_unset=True)
+
+        if "is_group_transaction" in update_data:
+            if update_data["is_group_transaction"]:
+                if not self._groups_repository:
+                    raise Exception("GroupsRepository is required for group operations")
+                group = self._groups_repository.get_group_by_admin(user_id)
+                if not group:
+                    membership = self._groups_repository.get_membership(user_id)
+                    if not membership:
+                        raise NotFoundException("No perteneces a ningún grupo familiar")
+                    update_data["family_group_id"] = membership.family_group_id
+                else:
+                    update_data["family_group_id"] = group.family_group_id
+            else:
+                update_data["family_group_id"] = None
+
         updated = self._repository.update_transaction(
-            transaction_id, **data.model_dump(exclude_unset=True)
+            transaction_id, **update_data
         )
 
         # Sync user.monthly_income when a Sueldo income transaction is updated
@@ -325,6 +357,7 @@ class TransactionsService:
             transaction_type_id=t.transaction_type_id,
             transaction_category_id=t.transaction_category_id,
             transaction_frequency_id=t.transaction_frequency_id,
+            is_group_transaction=t.is_group_transaction,
         )
 
     def get_financial_summary(
@@ -567,6 +600,7 @@ class TransactionsService:
             transaction_type_id=t.transaction_type_id,
             transaction_category_id=t.transaction_category_id,
             transaction_frequency_id=t.transaction_frequency_id,
+            is_group_transaction=t.is_group_transaction,
             user_name=user_name.strip(),
         )
 

@@ -81,6 +81,7 @@ class TransactionCreateDTO(BaseModel):
     transaction_type_id: UUID
     transaction_category_id: UUID | None = None
     transaction_frequency_id: UUID | None = None
+    is_group_transaction: bool = False
     description: str | None = None
     transaction_date: datetime
 
@@ -100,6 +101,7 @@ class TransactionUpdateDTO(BaseModel):
     transaction_type_id: UUID | None = None
     transaction_category_id: UUID | None = None
     transaction_frequency_id: UUID | None = None
+    is_group_transaction: bool | None = None
     description: str | None = None
     transaction_date: datetime | None = None
 
@@ -119,6 +121,7 @@ class TransactionResponseDTO(BaseModel):
     transaction_type_id: UUID
     transaction_category_id: UUID | None = None
     transaction_frequency_id: UUID | None = None
+    is_group_transaction: bool | None = None
 
     model_config = {"from_attributes": True}
 

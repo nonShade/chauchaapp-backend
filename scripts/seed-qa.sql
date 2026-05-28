@@ -136,116 +136,116 @@ ON CONFLICT (email) DO NOTHING;
 -- test_login@chauchaapp.cl: 27 transactions
 -- ============================================================
 
--- Monthly Recurring (start January, project across months)
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 850000.00, 'Sueldo mensual', '2026-01-01'
+-- Monthly Recurring (start January, project across months) — personal (is_group_transaction = FALSE)
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 850000.00, 'Sueldo mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 350000.00, 'Arriendo', '2026-01-05'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 350000.00, 'Arriendo', '2026-01-05'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Servicios Básicos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 42000.00, 'Luz y Agua', '2026-01-10'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Servicios Básicos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 42000.00, 'Luz y Agua', '2026-01-10'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Otros Gastos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 10000.00, 'Seguro celular', '2026-01-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Otros Gastos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 10000.00, 'Seguro celular', '2026-01-15'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 8500.00, 'Netflix', '2026-01-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 8500.00, 'Netflix', '2026-01-20'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 30000.00, 'Seguro salud', '2026-01-25'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 30000.00, 'Seguro salud', '2026-01-25'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
 -- Weekly Recurring (start May, active)
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Semanal'), 15000.00, 'Supermercado semanal', '2026-05-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Semanal'), FALSE, 15000.00, 'Supermercado semanal', '2026-05-01'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Semanal'), 5000.00, 'Carga Bip semanal', '2026-05-03'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Semanal'), FALSE, 5000.00, 'Carga Bip semanal', '2026-05-03'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
 -- One-time Expenses (cross multiple months)
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 45000.00, 'Súper Líder', '2026-04-05'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 45000.00, 'Súper Líder', '2026-04-05'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 15000.00, 'Carga Bip', '2026-04-06'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 15000.00, 'Carga Bip', '2026-04-06'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 32000.00, 'Farmacia Cruz Verde', '2026-04-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 32000.00, 'Farmacia Cruz Verde', '2026-04-20'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 150000.00, 'Curso Online', '2026-04-22'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 150000.00, 'Curso Online', '2026-04-22'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 25000.00, 'Cine y cena', '2026-04-25'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 25000.00, 'Cine y cena', '2026-04-25'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Otros Gastos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 60000.00, 'Compra imprevista', '2026-04-28'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Otros Gastos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 60000.00, 'Compra imprevista', '2026-04-28'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 45000.00, 'Mantención hogar', '2026-03-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 45000.00, 'Mantención hogar', '2026-03-15'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 60000.00, 'Tag autopista', '2026-03-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 60000.00, 'Tag autopista', '2026-03-20'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 85000.00, 'Dentista', '2026-02-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 85000.00, 'Dentista', '2026-02-15'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 55000.00, 'Supermercado Mayo', '2026-05-03'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 55000.00, 'Supermercado Mayo', '2026-05-03'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 15000.00, 'Carga Bip Mayo', '2026-05-07'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 15000.00, 'Carga Bip Mayo', '2026-05-07'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 150000.00, 'Consulta Médica', '2026-04-08'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 150000.00, 'Consulta Médica', '2026-04-08'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 200000.00, 'Curso Desarrollo Web', '2026-04-12'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 200000.00, 'Curso Desarrollo Web', '2026-04-12'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 95000.00, 'Cena Aniversario', '2026-04-18'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 95000.00, 'Cena Aniversario', '2026-04-18'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 70000.00, 'Supermercado Extra Abril', '2026-04-25'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 70000.00, 'Supermercado Extra Abril', '2026-04-25'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 120000.00, 'Cumpleaños', '2026-05-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 120000.00, 'Cumpleaños', '2026-05-15'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 35000.00, 'Mantención auto', '2026-05-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 35000.00, 'Mantención auto', '2026-05-20'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
 -- One-time Income
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Freelance'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 200000.00, 'Proyecto freelance', '2026-04-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Freelance'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 200000.00, 'Proyecto freelance', '2026-04-15'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Inversiones'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 50000.00, 'Dividendos', '2026-03-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Inversiones'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 50000.00, 'Dividendos', '2026-03-01'
 FROM "user" u WHERE u.email = 'test_login@chauchaapp.cl' ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -277,21 +277,15 @@ WHERE admin.email = 'test_login@chauchaapp.cl'
         AND gm.family_group_id = fg.family_group_id
   );
 
-UPDATE "transaction" t
-SET family_group_id = fg.family_group_id
-FROM family_group fg
-JOIN "user" admin ON admin.user_id = fg.admin_id
-WHERE admin.email = 'test_login@chauchaapp.cl'
-  AND fg.name = 'Grupo Familiar Test'
-  AND t.user_id = admin.user_id
-  AND t.family_group_id IS NULL;
 
+-- Copy admin's transactions to the family member (test_family), also marked as group transactions
 INSERT INTO "transaction" (
     user_id,
     family_group_id,
     transaction_type_id,
     transaction_category_id,
     transaction_frequency_id,
+    is_group_transaction,
     amount,
     description,
     transaction_date
@@ -302,6 +296,7 @@ SELECT
     t.transaction_type_id,
     t.transaction_category_id,
     t.transaction_frequency_id,
+    TRUE,
     t.amount,
     t.description,
     CASE
@@ -330,140 +325,140 @@ WHERE source_user.email = 'test_login@chauchaapp.cl'
 -- Other QA Users
 -- ============================================================
 
--- maria.gonzalez@test.cl - salaried, 1,500,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 1500000.00, 'Sueldo mensual', '2026-01-01'
+-- maria.gonzalez@test.cl - salaried, 1,500,000 — personal (is_group_transaction = FALSE)
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 1500000.00, 'Sueldo mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 85000.00, 'Supermercado mensual', '2026-04-03'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 85000.00, 'Supermercado mensual', '2026-04-03'
 FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 45000.00, 'Farmacia', '2026-04-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 45000.00, 'Farmacia', '2026-04-15'
 FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 35000.00, 'Salida familiar', '2026-05-10'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 35000.00, 'Salida familiar', '2026-05-10'
 FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
 
 -- carlos.munoz@test.cl - independent, 2,000,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 2000000.00, 'Ingreso mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 2000000.00, 'Ingreso mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 120000.00, 'Mantención vehículo', '2026-04-08'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 120000.00, 'Mantención vehículo', '2026-04-08'
 FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 80000.00, 'Curso marketing', '2026-05-05'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 80000.00, 'Curso marketing', '2026-05-05'
 FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 250000.00, 'Reparación hogar', '2026-03-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 250000.00, 'Reparación hogar', '2026-03-20'
 FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
 
 -- valentina.rojas@test.cl - mixed, 1,800,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 1800000.00, 'Ingreso mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 1800000.00, 'Ingreso mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'valentina.rojas@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 65000.00, 'Consulta médica', '2026-04-12'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 65000.00, 'Consulta médica', '2026-04-12'
 FROM "user" u WHERE u.email = 'valentina.rojas@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 55000.00, 'Concierto', '2026-05-08'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 55000.00, 'Concierto', '2026-05-08'
 FROM "user" u WHERE u.email = 'valentina.rojas@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 95000.00, 'Supermercado Quincena', '2026-04-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 95000.00, 'Supermercado Quincena', '2026-04-20'
 FROM "user" u WHERE u.email = 'valentina.rojas@test.cl' ON CONFLICT DO NOTHING;
 
 -- andres.silva@test.cl - salaried, 650,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 650000.00, 'Sueldo mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 650000.00, 'Sueldo mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'andres.silva@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 25000.00, 'Carga Bip', '2026-04-10'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 25000.00, 'Carga Bip', '2026-04-10'
 FROM "user" u WHERE u.email = 'andres.silva@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 35000.00, 'Supermercado', '2026-05-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 35000.00, 'Supermercado', '2026-05-15'
 FROM "user" u WHERE u.email = 'andres.silva@test.cl' ON CONFLICT DO NOTHING;
 
 -- camila.torres@test.cl - other, 900,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 900000.00, 'Ingreso mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 900000.00, 'Ingreso mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'camila.torres@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 40000.00, 'Streaming anual', '2026-04-05'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 40000.00, 'Streaming anual', '2026-04-05'
 FROM "user" u WHERE u.email = 'camila.torres@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 50000.00, 'Supermercado', '2026-05-02'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 50000.00, 'Supermercado', '2026-05-02'
 FROM "user" u WHERE u.email = 'camila.torres@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Otros Gastos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 25000.00, 'Suscripción revista', '2026-03-10'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Otros Gastos'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 25000.00, 'Suscripción revista', '2026-03-10'
 FROM "user" u WHERE u.email = 'camila.torres@test.cl' ON CONFLICT DO NOTHING;
 
 -- diego.fernandez@test.cl - salaried, 2,500,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 2500000.00, 'Sueldo mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 2500000.00, 'Sueldo mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'diego.fernandez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 350000.00, 'Diplomado', '2026-04-03'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 350000.00, 'Diplomado', '2026-04-03'
 FROM "user" u WHERE u.email = 'diego.fernandez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 95000.00, 'Consulta especialista', '2026-05-10'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 95000.00, 'Consulta especialista', '2026-05-10'
 FROM "user" u WHERE u.email = 'diego.fernandez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 180000.00, 'Mantención hogar', '2026-03-15'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 180000.00, 'Mantención hogar', '2026-03-15'
 FROM "user" u WHERE u.email = 'diego.fernandez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 75000.00, 'Tag autopista', '2026-04-22'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 75000.00, 'Tag autopista', '2026-04-22'
 FROM "user" u WHERE u.email = 'diego.fernandez@test.cl' ON CONFLICT DO NOTHING;
 
 -- javiera.lopez@test.cl - independent, 1,100,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 1100000.00, 'Ingreso mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 1100000.00, 'Ingreso mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'javiera.lopez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 65000.00, 'Supermercado', '2026-04-07'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 65000.00, 'Supermercado', '2026-04-07'
 FROM "user" u WHERE u.email = 'javiera.lopez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 30000.00, 'Salida cultural', '2026-05-12'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 30000.00, 'Salida cultural', '2026-05-12'
 FROM "user" u WHERE u.email = 'javiera.lopez@test.cl' ON CONFLICT DO NOTHING;
 
 -- felipe.martinez@test.cl - mixed, 3,000,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), 3000000.00, 'Ingreso mensual', '2026-01-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 3000000.00, 'Ingreso mensual', '2026-01-01'
 FROM "user" u WHERE u.email = 'felipe.martinez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 500000.00, 'MBA cuota', '2026-04-01'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 500000.00, 'MBA cuota', '2026-04-01'
 FROM "user" u WHERE u.email = 'felipe.martinez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 400000.00, 'Dividendo extra', '2026-05-05'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 400000.00, 'Dividendo extra', '2026-05-05'
 FROM "user" u WHERE u.email = 'felipe.martinez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 120000.00, 'Seguro salud extra', '2026-03-10'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 120000.00, 'Seguro salud extra', '2026-03-10'
 FROM "user" u WHERE u.email = 'felipe.martinez@test.cl' ON CONFLICT DO NOTHING;
 
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), 150000.00, 'Supermercado familiar', '2026-04-20'
+INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
+SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 150000.00, 'Supermercado familiar', '2026-04-20'
 FROM "user" u WHERE u.email = 'felipe.martinez@test.cl' ON CONFLICT DO NOTHING;
 
 -- ============================================================
