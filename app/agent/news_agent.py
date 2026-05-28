@@ -123,8 +123,10 @@ class NewsAnalysisAgentOptimized:
            - Cómo lo afecta a ÉL/ELLA específicamente
 
         6. Recomendación: Debe ser una acción concreta, directa, real.
-           Ej: "Revisar presupuesto mensual", "Considerar transporte público",
-               "No impacta finanzas personales", etc.
+        Ej: "Revisar presupuesto mensual", "Considerar transporte público",
+            "No impacta finanzas personales", etc.
+
+        Si necesitas buscar fuentes o noticias, usa web_search_using_tavily.
 
         No alucines. Sé pragmático y útil.
         """
@@ -604,7 +606,10 @@ class NewsAnalysisAgentOptimized:
 
             logger.info(f" Buscando noticias chilenas: {search_query}")
 
-            response = self.agent.run(f"Search for: {search_query}. Return only the search results as a structured list.")
+            response = self.agent.run(
+                f"""Usa web_search_using_tavily para buscar: {search_query}.
+                Devuelve solo resultados con URLs en texto plano."""
+            )
 
             if not response or not response.messages:
                 logger.info("No results from Chilean search")

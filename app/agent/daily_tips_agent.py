@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
 from agno.agent import Agent
 from agno.models.nvidia import Nvidia
 from agno.tools.tavily import TavilyTools
@@ -11,6 +11,7 @@ load_dotenv()
 
 class DailyTip(BaseModel):
     """Modelo para un tip financiero individual."""
+    model_config = ConfigDict(extra="forbid")
     titulo: str = Field(..., description="Título del tip financiero")
     texto: str = Field(...,
                        description="Contenido detallado del tip financiero")
@@ -24,6 +25,7 @@ class DailyTip(BaseModel):
 
 class DailyTipWeekly(BaseModel):
     """Modelo para un tip financiero en un batch semanal (day_of_week requerido)."""
+    model_config = ConfigDict(extra="forbid")
     titulo: str = Field(..., description="Título del tip financiero")
     texto: str = Field(...,
                        description="Contenido detallado del tip financiero")
@@ -39,9 +41,11 @@ class DailyTipWeekly(BaseModel):
 
 class DailyTipBatch(BaseModel):
     """Modelo para un lote de 7 tips financieros semanales."""
+    model_config = ConfigDict(extra="forbid")
     tips: list[DailyTipWeekly] = Field(
         ...,
-        description="Lista de exactamente 7 tips financieros para la semana"
+        description="Lista de exactamente 7 tips financieros para la semana",
+        json_schema_extra={"minItems": 7, "maxItems": 7},
     )
 
     def __init__(self, **data):
@@ -147,9 +151,11 @@ class DailyTipsAgent:
             3. Si no tienes datos actualizados de una cifra, omite el número o usa una referencia
             genérica como "según el valor vigente de la UF".
             4. Usa SOLO las categorías permitidas.
-            5. Cada tip debe incluir al menos una estrategia conductual concreta y accionable.
-            6. Evita consejos genéricos: debe ser aplicable hoy por una persona real.
-            7. Responde SIEMPRE con el JSON exacto requerido, sin texto adicional."""
+            5. Usa claves exactas: titulo, texto, categoria, day_of_week (cuando aplique).
+            6. No uses day_of0_week ni dayOfWeek.
+            7. Cada tip debe incluir al menos una estrategia conductual concreta y accionable.
+            8. Evita consejos genéricos: debe ser aplicable hoy por una persona real.
+            9. Responde SIEMPRE con el JSON exacto requerido, sin texto adicional."""
 
         agent = Agent(
             name="DailyTipsAgent",
@@ -228,39 +234,70 @@ class DailyTipsAgent:
         - No repitas la misma estrategia principal más de 2 veces en la semana
         - Incluye una micro-acción concreta en cada tip
         - Varía las categorías durante la semana
-        - Categorías permitidas: {categories_str}
+        - Categorías permitidas: {categories_str} (nombre exacto)
         - Asigna day_of_week de 0 (Lunes) a 6 (Domingo)
-        - Responde SOLO con el JSON, sin texto adicional"""
+        - Claves exactas: titulo, texto, categoria, day_of_week
+        - No uses day_of0_week ni dayOfWeek
+        - Responde SOLO con el JSON, sin texto adicional
 
-        try:
-            import json
+        FORMATO OBLIGATORIO (estructura):
+        {{
+          "tips": [
+            {{"titulo": "...", "texto": "...", "categoria": "Sueldo mínimo", "day_of_week": 0}},
+            {{"titulo": "...", "texto": "...", "categoria": "Combustible", "day_of_week": 1}},
+            {{"titulo": "...", "texto": "...", "categoria": "Alimentos", "day_of_week": 2}},
+            {{"titulo": "...", "texto": "...", "categoria": "Vivienda", "day_of_week": 3}},
+            {{"titulo": "...", "texto": "...", "categoria": "Transporte", "day_of_week": 4}},
+            {{"titulo": "...", "texto": "...", "categoria": "Servicios básicos", "day_of_week": 5}},
+            {{"titulo": "...", "texto": "...", "categoria": "Impuestos", "day_of_week": 6}}
+          ]
+        }}"""
 
-            response = self.agent.run(prompt, output_schema=DailyTipBatch)
-
-            if response.content is None:
-                raise ValueError("El modelo no devolvió un contenido válido")
-
-            # Manejar response.content como string JSON o como objeto
-            if isinstance(response.content, str):
-                content_dict = json.loads(response.content)
-            else:
-                content_dict = response.content.model_dump() if hasattr(
-                    response.content, 'model_dump') else response.content
-
-            batch = DailyTipBatch(**content_dict) if isinstance(content_dict,
-                                                                dict) else DailyTipBatch(**content_dict.model_dump())
-            tips_list = batch.tips
-
-            for i, tip in enumerate(tips_list):
-                if tip.categoria not in self.ALLOWED_CATEGORIES:
-                    raise ValueError(
-                        f"Tip {i}: Categoría no permitida '{tip.categoria}'. "
-                        f"Permitidas: {', '.join(self.ALLOWED_CATEGORIES)}"
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                attempt_prompt = prompt
+                if attempt > 0 and last_error is not None:
+                    attempt_prompt = (
+                        f"{prompt}\n\n"
+                        "CORRECCIÓN OBLIGATORIA:\n"
+                        f"La salida anterior fue inválida: {last_error}\n"
+                        "Devuelve JSON válido con 7 tips y claves exactas."
                     )
 
-            return tips_list
-        except Exception as e:
-            raise Exception(f"Error al generar lote de tips: {str(e)}")
+                import json
+                response = self.agent.run(attempt_prompt, output_schema=DailyTipBatch)
+
+                if response.content is None:
+                    raise ValueError("El modelo no devolvió un contenido válido")
+
+                if isinstance(response.content, DailyTipBatch):
+                    batch = response.content
+                else:
+                    if isinstance(response.content, str):
+                        content_dict = json.loads(response.content)
+                    else:
+                        content_dict = response.content.model_dump() if hasattr(
+                            response.content, 'model_dump') else response.content
+
+                    batch = DailyTipBatch(**content_dict) if isinstance(content_dict,
+                                                                        dict) else DailyTipBatch(**content_dict.model_dump())
+
+                tips_list = batch.tips
+
+                for i, tip in enumerate(tips_list):
+                    if tip.categoria not in self.ALLOWED_CATEGORIES:
+                        raise ValueError(
+                            f"Tip {i}: Categoría no permitida '{tip.categoria}'. "
+                            f"Permitidas: {', '.join(self.ALLOWED_CATEGORIES)}"
+                        )
+
+                return tips_list
+            except (ValueError, ValidationError, TypeError, json.JSONDecodeError) as exc:
+                last_error = exc
+                continue
+
+        raise Exception(f"Error al generar lote de tips: {last_error}")
 
     def get_daily_tip_safe(self) -> Optional[DailyTip]:
         """
