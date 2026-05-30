@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -16,6 +17,62 @@ load_dotenv()
 
 LevelType = Literal["Principiante", "Intermedio", "Avanzado"]
 QuestionType = Literal["multiple_choice", "true_false", "single_choice", "fill_blank"]
+PRACTICAL_SCENARIO_CUES = (
+    "si ",
+    "cuando ",
+    "mientras ",
+    "tienes ",
+    "estas ",
+    "quieres ",
+    "vas a ",
+    "debes ",
+    "decides ",
+    "recibes ",
+    "observas ",
+    "revisas ",
+    "comparas ",
+    "te ",
+    "tu ",
+    "tus ",
+    "cliente ",
+    "inversionista ",
+    "participe ",
+    "portafolio ",
+    "cartera ",
+    "fondo ",
+)
+THEORETICAL_PREFIXES = (
+    "quien ",
+    "que es ",
+    "que significa ",
+    "cual es ",
+    "cuales son ",
+    "que documento ",
+    "que tipo ",
+    "que riesgos ",
+    "que activos ",
+    "que entidad ",
+    "quien regula ",
+    "que regula ",
+    "que indica ",
+    "que define ",
+)
+THEORETICAL_TOKENS = (
+    "definicion",
+    "define",
+    "significa",
+    "regula",
+    "regulador",
+    "supervisa",
+    "autoridad",
+    "institucion",
+    "documento",
+    "lista",
+    "tipos de",
+    "es la",
+    "son los",
+)
+MIN_PRACTICAL_QUESTION_RATIO = 0.7
 
 
 class Section(BaseModel):
@@ -171,6 +228,10 @@ class QuizzAgent:
         instructions = (
             "Eres un asistente para generar y validar módulos educativos financieros. "
             "Solo puedes usar el contexto provisto. "
+            "Prioriza preguntas practicas basadas en escenarios reales del modulo. "
+            "Cada pregunta debe presentar un escenario y pedir una decision o accion. "
+            "Prohibido: definiciones, regulacion, listas de conceptos, preguntas tipo 'que es', "
+            "'quien regula', 'cual es', 'que significa'. "
             "Devuelve SOLO JSON cuando se solicite un módulo, sin texto adicional."
         )
         tools = []
@@ -181,9 +242,38 @@ class QuizzAgent:
             instructions=instructions,
             description="Agente para crear y validar módulos educativos usando GROQ",
             session_id=self.session_id,
-            markdown=True,
+            markdown=False,
         )
         return agent
+
+    def _parse_json_content(self, content: str) -> dict | list:
+        raw_content = content.strip()
+        fenced_match = re.search(r"```(?:json)?\s*(.*?)```", raw_content, re.DOTALL | re.IGNORECASE)
+        if fenced_match:
+            raw_content = fenced_match.group(1).strip()
+
+        start_candidates = [raw_content.find("{"), raw_content.find("[")]
+        start_candidates = [value for value in start_candidates if value != -1]
+        if start_candidates:
+            start_index = min(start_candidates)
+            end_index = max(raw_content.rfind("}"), raw_content.rfind("]"))
+            if end_index > start_index:
+                raw_content = raw_content[start_index : end_index + 1]
+
+        raw_content = re.sub(r",\s*([}\]])", r"\1", raw_content)
+
+        try:
+            parsed = json.loads(raw_content)
+        except json.JSONDecodeError as exc:
+            try:
+                parsed = ast.literal_eval(raw_content)
+            except Exception as eval_exc:
+                raise RuntimeError(
+                    f"Failed to parse agent response: {eval_exc}"
+                ) from exc
+        if not isinstance(parsed, (dict, list)):
+            raise RuntimeError("Agent response parsed to unsupported type")
+        return parsed
 
     def _get_module_context(self, topic: str, country: str = "Chile") -> str:
         api_key = self._get_nvidia_api_key()
@@ -192,14 +282,15 @@ class QuizzAgent:
             tools=[TavilyTools()],
             model=Nvidia(id="qwen/qwen3-coder-480b-a35b-instruct", api_key=api_key),
             instructions=(
-                "Tu unica funcion es buscar informacion con web_search. "
+                "Tu unica funcion es buscar informacion con web_search_using_tavily. "
+                "Usa EXACTAMENTE esa herramienta y nombre. "
                 "No respondas con memoria previa. "
                 "Si no encuentras un dato, indicalo como 'dato no encontrado'."
             ),
         )
 
         response = search_agent.run(
-            f"""Usa web_search para buscar AHORA mismo fuentes confiables sobre:
+            f"""Usa web_search_using_tavily para buscar AHORA mismo fuentes confiables sobre:
             1. conceptos clave de {topic} en finanzas personales
             2. definiciones claras y actuales de terminos esenciales
             3. buenas practicas y riesgos frecuentes
@@ -317,10 +408,10 @@ class QuizzAgent:
                 {
                     "id": "q1",
                     "type": "single_choice",
-                    "question": f"Que es {topic}?",
-                    "options": ["Definicion correcta", "Definicion incorrecta"],
+                    "question": f"Tienes una situacion real relacionada con {topic}. Que accion tomas primero?",
+                    "options": ["Accion correcta", "Accion incorrecta"],
                     "correctAnswer": 0,
-                    "explanation": "Concepto base del modulo.",
+                    "explanation": "Aplica el concepto en un caso real y prioriza la accion correcta.",
                 }
             ]
 
@@ -350,6 +441,26 @@ class QuizzAgent:
             "quiz": quiz,
         }
 
+    def _is_practical_question(self, question_text: str) -> bool:
+        normalized = re.sub(r"\s+", " ", question_text.strip().lower())
+        normalized = normalized.lstrip("¿")
+        if not normalized:
+            return False
+        if any(cue in normalized for cue in PRACTICAL_SCENARIO_CUES):
+            return True
+        if any(normalized.startswith(prefix) for prefix in THEORETICAL_PREFIXES):
+            return False
+        if any(token in normalized for token in THEORETICAL_TOKENS):
+            return False
+        return True
+
+    def _practical_question_ratio(self, questions: list[Question]) -> float:
+        total = max(len(questions), 1)
+        practical = sum(
+            1 for question in questions if self._is_practical_question(question.question)
+        )
+        return practical / total
+
     def generate_module_from_topic(self, topic: str, level: LevelType) -> Module:
         context = self._get_module_context(topic=topic)
         prompt = f"""CONTEXTO VERIFICADO (usar solo estos datos):
@@ -366,7 +477,17 @@ class QuizzAgent:
         - El quiz debe tener entre 8 y 12 preguntas.
         - Incluye secciones con ids unicos, contenido claro y coherente.
         - El quiz debe tener preguntas sin ambiguedad y respuestas correctas.
+        - Cada pregunta debe ser practica: escenario real del modulo + decision/accion.
+        - Usa formato recomendado: "Escenario: ... ? Que haces primero?" o "Estas ... ? Que decision tomas?".
+        - Evita preguntas teoricas o definiciones directas.
+        - Prohibido: "que es", "quien regula", "cual es", "que significa", listas de conceptos.
+        - Opciones deben ser acciones concretas, no definiciones.
+        - Evita true_false salvo que el escenario requiera verificar una accion.
+        - La explicacion debe dar feedback practico y conectar con la seccion del modulo.
         - Responde SOLO con JSON valido para el esquema Module.
+        - Usa comillas dobles en todas las claves y strings.
+        - No uses comillas simples ni comentarios.
+        - No uses markdown ni fences de codigo.
         - Incluye SIEMPRE estos campos obligatorios a nivel raiz:
           id, slug, title, description, level, estimatedTimeMinutes, category,
           tags, topicsCount, createdAt, learningObjectives, content, topics, quiz.
@@ -377,32 +498,55 @@ class QuizzAgent:
           question, options (si aplica), correctAnswer (si aplica), explanation.
         """
 
-        response = self.agent.run(prompt)
-        content = response.content
-        if content is None:
-            raise RuntimeError("Agent returned no content")
+        last_error: Exception | None = None
+        for _attempt in range(3):
+            response = self.agent.run(prompt, output_schema=Module)
+            content = response.content
+            if content is None:
+                last_error = RuntimeError("Agent returned no content")
+                continue
 
-        if isinstance(content, str):
-            parsed = json.loads(content)
+            if isinstance(content, Module):
+                return content
+
+            if isinstance(content, str):
+                try:
+                    parsed = self._parse_json_content(content)
+                except RuntimeError as exc:
+                    last_error = exc
+                    continue
+            else:
+                parsed = (
+                    content.model_dump() if hasattr(content, "model_dump") else content
+                )
+
             if isinstance(parsed, dict) and parsed.get("error"):
-                raise RuntimeError(f"Agent error: {parsed['error']}")
+                last_error = RuntimeError(f"Agent error: {parsed['error']}")
+                continue
+
             normalized = (
                 self._normalize_generated_module(parsed, topic=topic, level=level)
                 if isinstance(parsed, dict)
                 else parsed
             )
-            return Module.parse_obj(normalized)
+            try:
+                module = Module.parse_obj(normalized)
+            except Exception as exc:
+                last_error = exc
+                continue
 
-        parsed = content.model_dump() if hasattr(content, "model_dump") else content
-        if isinstance(parsed, dict) and parsed.get("error"):
-            raise RuntimeError(f"Agent error: {parsed['error']}")
+            if (
+                self._practical_question_ratio(module.quiz.questions)
+                < MIN_PRACTICAL_QUESTION_RATIO
+            ):
+                last_error = RuntimeError("Quiz questions are not practical enough")
+                continue
 
-        normalized = (
-            self._normalize_generated_module(parsed, topic=topic, level=level)
-            if isinstance(parsed, dict)
-            else parsed
+            return module
+
+        raise RuntimeError(
+            f"Failed to generate module after 3 attempts: {last_error}"
         )
-        return Module.parse_obj(normalized)
 
     def _default_modules_data(self) -> list[dict]:
         return [
@@ -463,26 +607,26 @@ class QuizzAgent:
                         {
                             "id": "q1",
                             "type": "single_choice",
-                            "question": "Que incluye el CAE?",
+                            "question": "Estas comparando dos creditos con la misma cuota mensual, pero CAE distinto. Que haces primero para decidir?",
                             "options": [
-                                "Solo la tasa de interes",
-                                "Tasa, seguros, comisiones y gastos asociados",
-                                "Solo comisiones",
+                                "Comparo el CAE y costos asociados totales",
+                                "Elijo el que tenga la cuota mas baja sin revisar costos",
+                                "Elijo el que tenga mas publicidad",
                             ],
-                            "correctAnswer": 1,
-                            "explanation": "El CAE considera todos los costos asociados al credito.",
+                            "correctAnswer": 0,
+                            "explanation": "Aplicas el CAE para comparar el costo total real del credito.",
                         },
                         {
                             "id": "q2",
                             "type": "single_choice",
-                            "question": "Que diferencia hay entre tasa nominal y efectiva?",
+                            "question": "Necesitas un credito y te ofrecen tasa nominal baja pero plazo largo. Que accion te ayuda a decidir mejor?",
                             "options": [
-                                "La efectiva incluye capitalizacion de intereses",
-                                "La nominal siempre es mayor a la efectiva",
-                                "Son exactamente iguales",
+                                "Calcular el total pagado y comparar con un plazo mas corto",
+                                "Aceptar de inmediato por la tasa nominal baja",
+                                "Elegir el plazo mas largo solo por cuota baja",
                             ],
                             "correctAnswer": 0,
-                            "explanation": "La tasa efectiva considera el interes sobre interes.",
+                            "explanation": "Comparar total pagado y plazo muestra el impacto real en intereses.",
                         },
                     ],
                 },
@@ -537,22 +681,26 @@ class QuizzAgent:
                         {
                             "id": "q1",
                             "type": "single_choice",
-                            "question": "Que porcentaje propone la regla 50/30/20 para el ahorro?",
-                            "options": ["10%", "20%", "30%"],
-                            "correctAnswer": 1,
-                            "explanation": "La regla sugiere ahorrar o pagar deudas con el 20%.",
+                            "question": "Recibes tu sueldo y quieres aplicar la regla 50/30/20. Cual es tu primer paso?",
+                            "options": [
+                                "Separar el 20% para ahorro o deuda antes de gastar",
+                                "Gastar primero y ahorrar lo que quede",
+                                "Asignar todo a deseos porque es inicio de mes",
+                            ],
+                            "correctAnswer": 0,
+                            "explanation": "Separar el ahorro primero hace aplicable la regla en la vida real.",
                         },
                         {
                             "id": "q2",
                             "type": "single_choice",
-                            "question": "Cual es el primer paso para crear un presupuesto?",
+                            "question": "Al hacer tu presupuesto, detectas que tus gastos variables suben cada semana. Que accion practica tomas?",
                             "options": [
-                                "Definir tus metas de ahorro",
-                                "Listar ingresos y gastos",
-                                "Pedir un credito",
+                                "Revisar gastos semanalmente y ajustar categorias",
+                                "Ignorar el problema hasta fin de mes",
+                                "Pedir un credito para cubrir el exceso",
                             ],
-                            "correctAnswer": 1,
-                            "explanation": "Sin conocer tus ingresos y gastos no puedes presupuestar.",
+                            "correctAnswer": 0,
+                            "explanation": "Revisar seguido permite corregir el presupuesto antes de salirte del plan.",
                         },
                     ],
                 },
@@ -644,6 +792,12 @@ class QuizzAgent:
     def generate_quiz_from_module(self, module: Module) -> dict:
         prompt = (
             f"Genera un JSON con la estructura completa de quiz para el módulo '{module.title}'. "
+            "Usa el contenido del modulo para crear preguntas practicas basadas en escenarios reales. "
+            "Cada pregunta debe pedir una decision o accion. "
+            "Prohibido: definiciones, regulacion, listas de conceptos, 'que es', 'quien regula'. "
+            "Usa escenarios con 'tu' o 'te' y decisiones claras. "
+            "Opciones deben ser acciones concretas. Evita true_false salvo que el escenario lo requiera. "
+            "La explicacion debe dar feedback practico y conectar con una seccion o tip. "
             "Incluye id, title, questionsCount, passingScore y questions. Responde SOLO con JSON."
         )
         response = self.agent.run(prompt)
@@ -652,7 +806,7 @@ class QuizzAgent:
             raise RuntimeError("Agent returned no content")
         try:
             if isinstance(content, str):
-                parsed = json.loads(content)
+                parsed = self._parse_json_content(content)
             else:
                 parsed = (
                     content.model_dump() if hasattr(content, "model_dump") else content

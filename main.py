@@ -7,9 +7,11 @@ CORS middleware, and global exception handlers.
 
 from app.shared.exceptions import AppException
 from app.modules.users.controller import router as users_router
+from app.modules.groups.controller import router as groups_router
 from app.modules.daily_tips.controller import router as daily_tips_router
 from app.modules.transactions.controller import router as transactions_router
 from app.modules.news.controller import router as news_router
+from app.modules.financial_data.controller import router as financial_planning_router
 from app.modules.auth.controller import router as auth_router
 from app.modules.groups.controller import router as groups_router
 from app.modules.notifications.controller import router as notifications_router
@@ -54,7 +56,9 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(transactions_router)
 app.include_router(news_router)
+app.include_router(financial_planning_router)
 app.include_router(daily_tips_router)
+app.include_router(groups_router)
 app.include_router(users_router)
 app.include_router(groups_router)
 app.include_router(notifications_router)
