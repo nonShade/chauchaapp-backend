@@ -17,6 +17,62 @@ load_dotenv()
 
 LevelType = Literal["Principiante", "Intermedio", "Avanzado"]
 QuestionType = Literal["multiple_choice", "true_false", "single_choice", "fill_blank"]
+PRACTICAL_SCENARIO_CUES = (
+    "si ",
+    "cuando ",
+    "mientras ",
+    "tienes ",
+    "estas ",
+    "quieres ",
+    "vas a ",
+    "debes ",
+    "decides ",
+    "recibes ",
+    "observas ",
+    "revisas ",
+    "comparas ",
+    "te ",
+    "tu ",
+    "tus ",
+    "cliente ",
+    "inversionista ",
+    "participe ",
+    "portafolio ",
+    "cartera ",
+    "fondo ",
+)
+THEORETICAL_PREFIXES = (
+    "quien ",
+    "que es ",
+    "que significa ",
+    "cual es ",
+    "cuales son ",
+    "que documento ",
+    "que tipo ",
+    "que riesgos ",
+    "que activos ",
+    "que entidad ",
+    "quien regula ",
+    "que regula ",
+    "que indica ",
+    "que define ",
+)
+THEORETICAL_TOKENS = (
+    "definicion",
+    "define",
+    "significa",
+    "regula",
+    "regulador",
+    "supervisa",
+    "autoridad",
+    "institucion",
+    "documento",
+    "lista",
+    "tipos de",
+    "es la",
+    "son los",
+)
+MIN_PRACTICAL_QUESTION_RATIO = 0.7
 
 
 class Section(BaseModel):
@@ -173,6 +229,9 @@ class QuizzAgent:
             "Eres un asistente para generar y validar módulos educativos financieros. "
             "Solo puedes usar el contexto provisto. "
             "Prioriza preguntas practicas basadas en escenarios reales del modulo. "
+            "Cada pregunta debe presentar un escenario y pedir una decision o accion. "
+            "Prohibido: definiciones, regulacion, listas de conceptos, preguntas tipo 'que es', "
+            "'quien regula', 'cual es', 'que significa'. "
             "Devuelve SOLO JSON cuando se solicite un módulo, sin texto adicional."
         )
         tools = []
@@ -382,6 +441,26 @@ class QuizzAgent:
             "quiz": quiz,
         }
 
+    def _is_practical_question(self, question_text: str) -> bool:
+        normalized = re.sub(r"\s+", " ", question_text.strip().lower())
+        normalized = normalized.lstrip("¿")
+        if not normalized:
+            return False
+        if any(cue in normalized for cue in PRACTICAL_SCENARIO_CUES):
+            return True
+        if any(normalized.startswith(prefix) for prefix in THEORETICAL_PREFIXES):
+            return False
+        if any(token in normalized for token in THEORETICAL_TOKENS):
+            return False
+        return True
+
+    def _practical_question_ratio(self, questions: list[Question]) -> float:
+        total = max(len(questions), 1)
+        practical = sum(
+            1 for question in questions if self._is_practical_question(question.question)
+        )
+        return practical / total
+
     def generate_module_from_topic(self, topic: str, level: LevelType) -> Module:
         context = self._get_module_context(topic=topic)
         prompt = f"""CONTEXTO VERIFICADO (usar solo estos datos):
@@ -399,7 +478,11 @@ class QuizzAgent:
         - Incluye secciones con ids unicos, contenido claro y coherente.
         - El quiz debe tener preguntas sin ambiguedad y respuestas correctas.
         - Cada pregunta debe ser practica: escenario real del modulo + decision/accion.
+        - Usa formato recomendado: "Escenario: ... ? Que haces primero?" o "Estas ... ? Que decision tomas?".
         - Evita preguntas teoricas o definiciones directas.
+        - Prohibido: "que es", "quien regula", "cual es", "que significa", listas de conceptos.
+        - Opciones deben ser acciones concretas, no definiciones.
+        - Evita true_false salvo que el escenario requiera verificar una accion.
         - La explicacion debe dar feedback practico y conectar con la seccion del modulo.
         - Responde SOLO con JSON valido para el esquema Module.
         - Usa comillas dobles en todas las claves y strings.
@@ -447,10 +530,19 @@ class QuizzAgent:
                 else parsed
             )
             try:
-                return Module.parse_obj(normalized)
+                module = Module.parse_obj(normalized)
             except Exception as exc:
                 last_error = exc
                 continue
+
+            if (
+                self._practical_question_ratio(module.quiz.questions)
+                < MIN_PRACTICAL_QUESTION_RATIO
+            ):
+                last_error = RuntimeError("Quiz questions are not practical enough")
+                continue
+
+            return module
 
         raise RuntimeError(
             f"Failed to generate module after 3 attempts: {last_error}"
@@ -701,7 +793,10 @@ class QuizzAgent:
         prompt = (
             f"Genera un JSON con la estructura completa de quiz para el módulo '{module.title}'. "
             "Usa el contenido del modulo para crear preguntas practicas basadas en escenarios reales. "
-            "Evita definiciones directas. Cada pregunta debe pedir una decision o accion. "
+            "Cada pregunta debe pedir una decision o accion. "
+            "Prohibido: definiciones, regulacion, listas de conceptos, 'que es', 'quien regula'. "
+            "Usa escenarios con 'tu' o 'te' y decisiones claras. "
+            "Opciones deben ser acciones concretas. Evita true_false salvo que el escenario lo requiera. "
             "La explicacion debe dar feedback practico y conectar con una seccion o tip. "
             "Incluye id, title, questionsCount, passingScore y questions. Responde SOLO con JSON."
         )
