@@ -24,7 +24,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
 
           script: |
-            cd /home/shade/apps/backend
+            cd /home/shade/apps/backend/chauchaapp-backend
 
             git fetch origin
 
