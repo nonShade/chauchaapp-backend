@@ -248,11 +248,11 @@ class TestLogoutEndpoint:
         assert response.status_code == 200
         assert response.json()["message"] == "Cierre de sesión exitoso"
 
-    def test_logout_without_token_returns_403(self, client):
-        """CP-010: Request without Authorization header returns 403 (HTTPBearer behaviour)."""
+    def test_logout_without_token_returns_401(self, client):
+        """CP-010: Request without Authorization header returns 401."""
         response = client.post("/v1/auth/logout")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_logout_invalid_token_returns_401(self, client):
         """Invalid JWT string returns 401."""

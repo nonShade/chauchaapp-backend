@@ -13,8 +13,9 @@ Default test password: TestPass123!
 import os
 import sys
 import uuid
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import bcrypt
 from dotenv import load_dotenv
@@ -24,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 
 # Import all entities to register them with SQLAlchemy
@@ -38,7 +39,7 @@ from app.modules.transactions.entities import (
     Transaction,
 )
 from app.modules.groups.entities import FamilyGroup, GroupMember
-from app.modules.notifications.entities import NotificationType, NotificationStatus
+from app.modules.notifications.entities import Notification, NotificationType, NotificationStatus
 from app.modules.education.entities import EducationalTopic
 
 
@@ -50,6 +51,7 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:password@localhost:5432/chauchaapp_db_qa",
 )
 TEST_PASSWORD = "TestPass123!"
+SANTIAGO_TZ = ZoneInfo("America/Santiago")
 
 
 def hash_password(password: str) -> str:
@@ -117,8 +119,9 @@ def seed_lookup_tables(session):
     income_categories = [
         ("Sueldo", "Sueldo mensual de trabajo dependiente"),
         ("Freelance", "Ingresos por trabajos independientes"),
+        ("Bonificación", "Bonos y gratificaciones recibidas"),
         ("Inversiones", "Retornos de inversiones"),
-        ("Otros Ingresos", "Otros ingresos no categorizados"),
+        ("Otros", "Otros ingresos no categorizados"),
     ]
     for name, desc in income_categories:
         if not session.query(TransactionCategory).filter_by(name=name).first():
@@ -126,6 +129,8 @@ def seed_lookup_tables(session):
                 name=name, description=desc,
                 transaction_type_id=income_type.transaction_type_id if income_type else None,
             ))
+    session.flush()
+    _normalize_income_categories(session, income_type)
 
     # Notification Types
     notification_types = [
@@ -168,6 +173,32 @@ def seed_lookup_tables(session):
 
     session.flush()
     print("  ✓ Lookup tables seeded")
+
+
+def _normalize_income_categories(session, income_type):
+    """Rename the old QA income category without leaving duplicates behind."""
+    old_category = (
+        session.query(TransactionCategory)
+        .filter_by(name="Otros Ingresos")
+        .first()
+    )
+    new_category = session.query(TransactionCategory).filter_by(name="Otros").first()
+
+    if old_category and not new_category:
+        old_category.name = "Otros"
+        old_category.description = "Otros ingresos no categorizados"
+        if income_type:
+            old_category.transaction_type_id = income_type.transaction_type_id
+        return
+
+    if old_category and new_category:
+        session.query(Transaction).filter_by(
+            transaction_category_id=old_category.transaction_category_id
+        ).update(
+            {"transaction_category_id": new_category.transaction_category_id},
+            synchronize_session=False,
+        )
+        session.delete(old_category)
 
 
 def seed_users(session):
@@ -331,7 +362,6 @@ def seed_transactions(session, family_group):
     sueldo = session.query(TransactionCategory).filter_by(name="Sueldo").first()
     freelance = session.query(TransactionCategory).filter_by(name="Freelance").first()
     inversiones = session.query(TransactionCategory).filter_by(name="Inversiones").first()
-    otros_ingresos = session.query(TransactionCategory).filter_by(name="Otros Ingresos").first()
 
     all_transactions = []
     family_group_id = family_group.family_group_id if family_group else None
@@ -343,6 +373,7 @@ def seed_transactions(session, family_group):
         user = session.query(User).filter_by(email=email).first()
         if not user:
             return
+        tx_datetime = _with_seed_time(tx_date, len(all_transactions))
         all_transactions.append(Transaction(
             user_id=user.user_id,
             family_group_id=family_group_id,
@@ -352,7 +383,7 @@ def seed_transactions(session, family_group):
             transaction_category_id=category.transaction_category_id,
             transaction_frequency_id=frequency.transaction_frequency_id,
             description=description,
-            transaction_date=tx_date,
+            transaction_date=tx_datetime,
         ))
 
     # =========================================
@@ -468,16 +499,105 @@ def seed_transactions(session, family_group):
 
     # Deduplicate and insert
     for tx in all_transactions:
-        existing = session.query(Transaction).filter_by(
-            user_id=tx.user_id,
-            description=tx.description,
-            transaction_date=tx.transaction_date
-        ).first()
-        if not existing:
+        existing = (
+            session.query(Transaction)
+            .filter(
+                Transaction.user_id == tx.user_id,
+                Transaction.description == tx.description,
+                func.date(Transaction.transaction_date)
+                == tx.transaction_date.date(),
+            )
+            .first()
+        )
+        if existing:
+            existing.transaction_date = tx.transaction_date
+        else:
             session.add(tx)
 
     session.flush()
     print(f"  ✓ Sample transactions seeded ({len(all_transactions)} transactions)")
+
+
+def _with_seed_time(tx_date: date | datetime, index: int) -> datetime:
+    """Attach a deterministic local time to QA transaction dates."""
+    if isinstance(tx_date, datetime):
+        if tx_date.tzinfo is None:
+            return tx_date.replace(tzinfo=SANTIAGO_TZ)
+        return tx_date.astimezone(SANTIAGO_TZ)
+
+    hour = 8 + (index % 10)
+    minute = (index * 7) % 60
+    return datetime.combine(tx_date, time(hour, minute), tzinfo=SANTIAGO_TZ)
+
+
+def seed_transaction_reminders(session):
+    """Seed reminder notifications for recurring expense transactions."""
+    reminder_type = (
+        session.query(NotificationType)
+        .filter_by(name="transaction_reminder")
+        .first()
+    )
+    pending_status = (
+        session.query(NotificationStatus)
+        .filter_by(name="pending")
+        .first()
+    )
+    expense_type = session.query(TransactionType).filter_by(name="Gasto").first()
+    if not reminder_type or not pending_status or not expense_type:
+        return
+
+    recurring_frequencies = (
+        session.query(TransactionFrequency)
+        .filter(TransactionFrequency.name.in_(["Mensual", "Semanal"]))
+        .all()
+    )
+    recurring_frequency_ids = [
+        frequency.transaction_frequency_id for frequency in recurring_frequencies
+    ]
+    if not recurring_frequency_ids:
+        return
+
+    transactions = (
+        session.query(Transaction)
+        .filter(Transaction.transaction_type_id == expense_type.transaction_type_id)
+        .filter(Transaction.transaction_frequency_id.in_(recurring_frequency_ids))
+        .all()
+    )
+
+    created_count = 0
+    for tx in transactions:
+        existing = (
+            session.query(Notification)
+            .filter_by(reference_id=tx.transaction_id, reference_type="transaction")
+            .first()
+        )
+        due_date = tx.transaction_date.date()
+        scheduled_date = due_date - timedelta(days=3)
+        description = tx.description or "gasto programado"
+        message = (
+            f"Recordatorio: tienes el gasto '{description}' programado "
+            f"para el {due_date.isoformat()}."
+        )
+        if existing:
+            existing.scheduled_date = scheduled_date
+            existing.message = message
+            continue
+
+        session.add(
+            Notification(
+                user_id=tx.user_id,
+                notification_type_id=reminder_type.notification_type_id,
+                notification_status_id=pending_status.notification_status_id,
+                message=message,
+                scheduled_date=scheduled_date,
+                reference_id=tx.transaction_id,
+                reference_type="transaction",
+            )
+        )
+        created_count += 1
+
+    session.flush()
+    print(f"  Transaction reminders seeded ({created_count} new)")
 
 
 def main():
@@ -509,6 +629,9 @@ def main():
 
         print("Seeding sample transactions...")
         seed_transactions(session, family_group)
+
+        print("Seeding transaction reminders...")
+        seed_transaction_reminders(session)
 
         session.commit()
         print(f"\n{'='*60}")

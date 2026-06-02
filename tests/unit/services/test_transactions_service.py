@@ -13,6 +13,8 @@ from app.modules.transactions.entities import (
 )
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.transactions.service import TransactionsService
+from app.modules.notifications.entities import NotificationStatus, NotificationType
+from app.modules.notifications.repository import NotificationsRepository
 from app.modules.transactions.dto import (
     TransactionCategoryResponseDTO,
     TransactionCreateDTO,
@@ -265,12 +267,44 @@ def test_get_user_transactions_projects_monthly_recurrence(service, mock_reposit
 
     # Assert
     assert result.meta.totalItems == 3
-    assert [item.transaction_date for item in result.data] == [
+    assert [item.transaction_date.date() for item in result.data] == [
         date(2026, 3, 31),
         date(2026, 2, 28),
         date(2026, 1, 31),
     ]
     assert all(item.amount == Decimal("1000") for item in result.data)
+
+
+def test_get_user_transactions_orders_same_day_by_time(service, mock_repository):
+    user_id = uuid.uuid4()
+    early_tx = _make_transaction_mock(
+        amount=Decimal("100"),
+        type_name="gasto",
+        tx_date=datetime(2026, 5, 20, 9, 0),
+    )
+    late_tx = _make_transaction_mock(
+        amount=Decimal("200"),
+        type_name="ingreso",
+        tx_date=datetime(2026, 5, 20, 18, 30),
+    )
+    mock_repository.get_all_user_transactions_eager.return_value = [
+        early_tx,
+        late_tx,
+    ]
+
+    result = service.get_user_transactions(
+        user_id,
+        page=1,
+        limit=10,
+        start_date=date(2026, 5, 20),
+        end_date=date(2026, 5, 20),
+    )
+
+    assert [item.amount for item in result.data] == [
+        Decimal("200"),
+        Decimal("100"),
+    ]
+    assert result.data[0].transaction_date.hour == 18
 
 
 def test_transaction_create_dto_parses_local_timezone():
@@ -283,6 +317,52 @@ def test_transaction_create_dto_parses_local_timezone():
     assert isinstance(data.transaction_date, datetime)
     assert data.transaction_date.tzinfo is not None
     assert data.transaction_date.tzinfo.key == "America/Santiago"
+
+
+def test_create_expense_transaction_creates_reminder_notification(
+    mock_repository,
+    mock_user_repository,
+):
+    notifications_repo = MagicMock(spec=NotificationsRepository)
+    service = TransactionsService(
+        repository=mock_repository,
+        user_repository=mock_user_repository,
+        notifications_repository=notifications_repo,
+    )
+    user_id = uuid.uuid4()
+    type_id = uuid.uuid4()
+    tx_id = uuid.uuid4()
+    data = TransactionCreateDTO(
+        amount=Decimal("8500"),
+        transaction_type_id=type_id,
+        description="Netflix",
+        transaction_date="2026-06-20",
+    )
+
+    def _create_transaction(transaction):
+        transaction.transaction_id = tx_id
+        return transaction
+
+    expense_type = MagicMock()
+    expense_type.name = "Gasto"
+    reminder_type = MagicMock(spec=NotificationType)
+    reminder_type.notification_type_id = uuid.uuid4()
+    pending_status = MagicMock(spec=NotificationStatus)
+    pending_status.notification_status_id = uuid.uuid4()
+    mock_repository.create_transaction.side_effect = _create_transaction
+    mock_repository.get_transaction_type_by_id.return_value = expense_type
+    notifications_repo.get_notification_type_by_name.return_value = reminder_type
+    notifications_repo.get_notification_status_by_name.return_value = pending_status
+
+    service.create_transaction(user_id, data)
+
+    notifications_repo.create_notification.assert_called_once()
+    notification = notifications_repo.create_notification.call_args.args[0]
+    assert notification.user_id == user_id
+    assert notification.reference_id == tx_id
+    assert notification.reference_type == "transaction"
+    assert notification.scheduled_date == date(2026, 6, 17)
+    assert "Netflix" in notification.message
 
 
 def test_get_financial_summary(service, mock_repository):
@@ -304,7 +384,11 @@ def test_get_financial_summary(service, mock_repository):
     ]
 
     # Act
-    result = service.get_financial_summary(user_id)
+    result = service.get_financial_summary(
+        user_id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 31),
+    )
 
     # Assert
     assert result.total_income == Decimal("1000")
@@ -353,7 +437,11 @@ def test_get_expense_distribution(service, mock_repository):
     mock_repository.get_all_user_transactions_eager.return_value = [expense_tx]
 
     # Act
-    result = service.get_expense_distribution(user_id)
+    result = service.get_expense_distribution(
+        user_id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 31),
+    )
 
     # Assert
     assert len(result) == 1

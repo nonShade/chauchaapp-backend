@@ -369,3 +369,39 @@ class TestRemoveMember:
 
         with pytest.raises(ConflictException):
             service.remove_member(admin_id, target_id)
+
+
+# ---------------------------------------------------------------------------
+# leave_group
+# ---------------------------------------------------------------------------
+
+
+class TestLeaveGroup:
+    def test_member_leaves_group_successfully(self, service, mock_groups_repo):
+        user_id = uuid.uuid4()
+        group_id = uuid.uuid4()
+        membership = MagicMock(spec=GroupMember)
+        membership.family_group_id = group_id
+
+        mock_groups_repo.get_group_by_admin.return_value = None
+        mock_groups_repo.get_membership.return_value = membership
+
+        result = service.leave_group(user_id)
+
+        mock_groups_repo.remove_member.assert_called_once_with(membership)
+        assert result.family_group_id == group_id
+
+    def test_admin_cannot_leave_with_member_endpoint(self, service, mock_groups_repo):
+        admin_id = uuid.uuid4()
+        mock_groups_repo.get_group_by_admin.return_value = _make_group(admin_id=admin_id)
+
+        with pytest.raises(ValidationException):
+            service.leave_group(admin_id)
+
+    def test_raises_if_user_has_no_group(self, service, mock_groups_repo):
+        user_id = uuid.uuid4()
+        mock_groups_repo.get_group_by_admin.return_value = None
+        mock_groups_repo.get_membership.return_value = None
+
+        with pytest.raises(NotFoundException):
+            service.leave_group(user_id)

@@ -21,7 +21,10 @@ def parse_local_date(value: Any) -> datetime | None:
         return None
 
     if isinstance(value, str):
-        value = datetime.fromisoformat(value)
+        raw_value = value.strip()
+        if len(raw_value) == 10:
+            return _date_with_current_time(date.fromisoformat(raw_value))
+        value = datetime.fromisoformat(raw_value)
 
     if isinstance(value, datetime):
         if value.tzinfo is None:
@@ -29,9 +32,14 @@ def parse_local_date(value: Any) -> datetime | None:
         return value.astimezone(SANTIAGO_TZ)
 
     if isinstance(value, date):
-        return datetime.combine(value, datetime.min.time(), tzinfo=SANTIAGO_TZ)
+        return _date_with_current_time(value)
 
     raise TypeError("transaction_date must be a date, datetime, or ISO string")
+
+
+def _date_with_current_time(value: date) -> datetime:
+    now = datetime.now(SANTIAGO_TZ).replace(microsecond=0)
+    return datetime.combine(value, now.timetz())
 
 
 class IncomeTypeResponseDTO(BaseModel):
@@ -117,7 +125,7 @@ class TransactionResponseDTO(BaseModel):
     transaction_id: UUID
     amount: Decimal
     description: str | None = None
-    transaction_date: date
+    transaction_date: datetime
     transaction_type_id: UUID
     transaction_category_id: UUID | None = None
     transaction_frequency_id: UUID | None = None

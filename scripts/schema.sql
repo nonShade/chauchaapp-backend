@@ -555,11 +555,47 @@ INSERT INTO transaction_category (name, description, transaction_type_id) VALUES
         (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso')),
     ('Freelance', 'Ingresos por trabajos independientes',
         (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso')),
+    ('Bonificación', 'Bonos y gratificaciones recibidas',
+        (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso')),
     ('Inversiones', 'Retornos de inversiones',
         (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso')),
-    ('Otros Ingresos', 'Otros ingresos no categorizados',
+    ('Otros', 'Otros ingresos no categorizados',
         (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'))
 ON CONFLICT (name) DO NOTHING;
+
+DO $$
+DECLARE
+    old_category_id UUID;
+    new_category_id UUID;
+BEGIN
+    SELECT transaction_category_id INTO old_category_id
+    FROM transaction_category
+    WHERE name = 'Otros Ingresos';
+
+    SELECT transaction_category_id INTO new_category_id
+    FROM transaction_category
+    WHERE name = 'Otros';
+
+    IF old_category_id IS NOT NULL AND new_category_id IS NULL THEN
+        UPDATE transaction_category
+        SET name = 'Otros',
+            description = 'Otros ingresos no categorizados',
+            transaction_type_id = (
+                SELECT transaction_type_id
+                FROM transaction_type
+                WHERE name = 'Ingreso'
+            )
+        WHERE transaction_category_id = old_category_id;
+    ELSIF old_category_id IS NOT NULL AND new_category_id IS NOT NULL THEN
+        UPDATE "transaction"
+        SET transaction_category_id = new_category_id
+        WHERE transaction_category_id = old_category_id;
+
+        DELETE FROM transaction_category
+        WHERE transaction_category_id = old_category_id;
+    END IF;
+END;
+$$;
 
 -- Notification Types
 INSERT INTO notification_type (name, description) VALUES

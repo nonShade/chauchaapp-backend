@@ -461,6 +461,57 @@ INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id
 SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 150000.00, 'Supermercado familiar', '2026-04-20'
 FROM "user" u WHERE u.email = 'felipe.martinez@test.cl' ON CONFLICT DO NOTHING;
 
+-- Add deterministic times to QA transactions that were inserted as date-only values.
+WITH ordered_transactions AS (
+    SELECT
+        transaction_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY user_id, transaction_date::date
+            ORDER BY description, transaction_id
+        ) AS row_number
+    FROM "transaction"
+    WHERE transaction_date::time = TIME '00:00:00'
+)
+UPDATE "transaction" AS tx
+SET transaction_date = tx.transaction_date
+    + (((ordered_transactions.row_number % 10) + 8) * INTERVAL '1 hour')
+    + (((ordered_transactions.row_number * 7) % 60) * INTERVAL '1 minute')
+FROM ordered_transactions
+WHERE tx.transaction_id = ordered_transactions.transaction_id;
+
+-- Seed reminder notifications for recurring expense transactions.
+INSERT INTO notification (
+    user_id,
+    notification_type_id,
+    notification_status_id,
+    message,
+    scheduled_date,
+    reference_id,
+    reference_type
+)
+SELECT
+    tx.user_id,
+    (SELECT notification_type_id FROM notification_type WHERE name = 'transaction_reminder'),
+    (SELECT notification_status_id FROM notification_status WHERE name = 'pending'),
+    'Recordatorio: tienes el gasto ''' || COALESCE(tx.description, 'gasto programado') ||
+        ''' programado para el ' || (tx.transaction_date::date)::text || '.',
+    (tx.transaction_date::date - INTERVAL '3 days')::date,
+    tx.transaction_id,
+    'transaction'
+FROM "transaction" tx
+JOIN transaction_type tt
+    ON tt.transaction_type_id = tx.transaction_type_id
+JOIN transaction_frequency tf
+    ON tf.transaction_frequency_id = tx.transaction_frequency_id
+WHERE tt.name = 'Gasto'
+  AND tf.name IN ('Mensual', 'Semanal')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM notification existing
+      WHERE existing.reference_type = 'transaction'
+        AND existing.reference_id = tx.transaction_id
+  );
+
 -- ============================================================
 -- QA SEED COMPLETE
 -- ============================================================

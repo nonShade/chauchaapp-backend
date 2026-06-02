@@ -6,7 +6,8 @@ Delegates data access to the repository layer.
 Must be independent of web framework (per backend development rules).
 """
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from app.modules.auth.dto import (
     LoginRequestDTO,
@@ -33,6 +34,8 @@ from app.shared.security.jwt_handler import (
 )
 from app.shared.security.password import hash_password, verify_password
 from app.shared.security.token_blacklist import token_blacklist
+
+SANTIAGO_TZ = ZoneInfo("America/Santiago")
 
 
 class AuthService:
@@ -125,7 +128,7 @@ class AuthService:
             )
 
         # Create default transactions (income: Sueldo, expense: Otros Gastos)
-        today = date.today()
+        now = datetime.now(SANTIAGO_TZ).replace(microsecond=0)
 
         income_type = self._transactions_repository.get_transaction_type_by_name("Ingreso")
         expense_type = self._transactions_repository.get_transaction_type_by_name("Gasto")
@@ -141,7 +144,7 @@ class AuthService:
             transaction_category_id=sueldo_category.transaction_category_id,
             transaction_frequency_id=monthly_frequency.transaction_frequency_id,
             description=None,
-            transaction_date=today,
+            transaction_date=now,
         )
         self._transactions_repository.add_transaction(income_tx)
 
@@ -153,7 +156,7 @@ class AuthService:
             transaction_category_id=otros_gastos_category.transaction_category_id,
             transaction_frequency_id=monthly_frequency.transaction_frequency_id,
             description="Gasto estimado del usuario",
-            transaction_date=today,
+            transaction_date=now,
         )
         self._transactions_repository.add_transaction(expense_tx)
 

@@ -123,3 +123,17 @@ def remove_member(
 ):
     """Remove a member from the family group (admin only)."""
     return service.remove_member(admin.user_id, user_id)
+
+
+@router.delete(
+    "/leave",
+    response_model=RemoveMemberResponseDTO,
+    summary="Salir del grupo familiar",
+    description="Permite que un miembro salga de su grupo familiar por cuenta propia.",
+)
+def leave_group(
+    user: User = Depends(get_current_user),
+    service: GroupsService = Depends(_get_groups_service),
+):
+    """Leave the current family group as a non-admin member."""
+    return service.leave_group(user.user_id)

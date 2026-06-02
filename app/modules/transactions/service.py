@@ -29,6 +29,8 @@ from app.modules.transactions.entities import Transaction
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.users.repository import UserRepository
 from app.modules.groups.repository import GroupsRepository
+from app.modules.notifications.entities import Notification
+from app.modules.notifications.repository import NotificationsRepository
 from app.shared.exceptions import ForbiddenException, NotFoundException
 
 SANTIAGO_TZ = ZoneInfo("America/Santiago")
@@ -42,10 +44,12 @@ class TransactionsService:
         repository: TransactionsRepository,
         user_repository: UserRepository,
         groups_repository: GroupsRepository | None = None,
+        notifications_repository: NotificationsRepository | None = None,
     ):
         self._repository = repository
         self._user_repository = user_repository
         self._groups_repository = groups_repository
+        self._notifications_repository = notifications_repository
 
     def get_income_types(self) -> list[IncomeTypeResponseDTO]:
         """Get all available income types.
@@ -121,6 +125,7 @@ class TransactionsService:
             transaction_date=data.transaction_date,
         )
         created = self._repository.create_transaction(transaction)
+        self._create_expense_reminder_notification(created)
         return self._map_to_response_dto(created)
 
     def update_transaction(
@@ -331,6 +336,25 @@ class TransactionsService:
         """Return the Chile-local calendar date for a transaction timestamp."""
         return self._to_santiago_datetime(transaction_date).date()
 
+    def _project_transaction_datetime(
+        self,
+        original_transaction_date: date | datetime,
+        projected_date: date | datetime | None = None,
+    ) -> datetime:
+        """Return a response timestamp, preserving time for projected recurrences."""
+        if projected_date is None:
+            return self._to_santiago_datetime(original_transaction_date)
+
+        if isinstance(projected_date, datetime):
+            return self._to_santiago_datetime(projected_date)
+
+        original_datetime = self._to_santiago_datetime(original_transaction_date)
+        return datetime.combine(
+            projected_date,
+            original_datetime.time(),
+            tzinfo=SANTIAGO_TZ,
+        )
+
     def _next_month_date(self, current_date: date, original_day: int) -> date:
         """Advance a date by one calendar month, clamping to the last valid day."""
         next_year = current_date.year + (1 if current_date.month == 12 else 0)
@@ -343,22 +367,103 @@ class TransactionsService:
         self, t: Transaction, transaction_date: date | datetime | None = None
     ) -> TransactionResponseDTO:
         """Helper to map Transaction entity to TransactionResponseDTO."""
-        response_date = (
-            transaction_date
-            if isinstance(transaction_date, date)
-            and not isinstance(transaction_date, datetime)
-            else self._to_santiago_date(transaction_date or t.transaction_date)
+        response_datetime = self._project_transaction_datetime(
+            t.transaction_date,
+            transaction_date,
         )
         return TransactionResponseDTO(
             transaction_id=t.transaction_id,
             amount=t.amount,
             description=t.description,
-            transaction_date=response_date,
+            transaction_date=response_datetime,
             transaction_type_id=t.transaction_type_id,
             transaction_category_id=t.transaction_category_id,
             transaction_frequency_id=t.transaction_frequency_id,
             is_group_transaction=t.is_group_transaction,
         )
+
+    def _create_expense_reminder_notification(self, transaction: Transaction) -> None:
+        """Create a reminder notification for expense transactions."""
+        if not self._notifications_repository:
+            return
+
+        transaction_type = self._repository.get_transaction_type_by_id(
+            transaction.transaction_type_id
+        )
+        type_name = getattr(transaction_type, "name", "")
+        if not isinstance(type_name, str) or type_name.lower().strip() != "gasto":
+            return
+
+        reminder_type = self._notifications_repository.get_notification_type_by_name(
+            "transaction_reminder"
+        )
+        pending_status = (
+            self._notifications_repository.get_notification_status_by_name("pending")
+        )
+        if not reminder_type or not pending_status:
+            return
+
+        frequency_name = None
+        if transaction.transaction_frequency_id:
+            frequency = self._repository.get_transaction_frequency_by_id(
+                transaction.transaction_frequency_id
+            )
+            raw_frequency_name = getattr(frequency, "name", None)
+            if isinstance(raw_frequency_name, str):
+                frequency_name = raw_frequency_name
+
+        due_date = self._next_due_date(
+            self._to_santiago_date(transaction.transaction_date),
+            frequency_name,
+        )
+        scheduled_date = due_date - timedelta(days=3)
+        description = transaction.description or "gasto programado"
+        notification = Notification(
+            user_id=transaction.user_id,
+            notification_type_id=reminder_type.notification_type_id,
+            notification_status_id=pending_status.notification_status_id,
+            message=(
+                f"Recordatorio: tienes el gasto '{description}' programado "
+                f"para el {due_date.isoformat()}."
+            ),
+            scheduled_date=scheduled_date,
+            reference_id=transaction.transaction_id,
+            reference_type="transaction",
+        )
+        self._notifications_repository.create_notification(notification)
+
+    def _next_due_date(
+        self, anchor_date: date, frequency_name: str | None
+    ) -> date:
+        """Resolve the next due date for a fixed-date expense."""
+        today = datetime.now(SANTIAGO_TZ).date()
+        freq_lower = frequency_name.lower().strip() if frequency_name else ""
+
+        if freq_lower == "mensual":
+            return self._next_monthly_due_date(anchor_date, today)
+
+        if freq_lower == "semanal":
+            due_date = anchor_date
+            while due_date < today:
+                due_date += timedelta(days=7)
+            return due_date
+
+        return anchor_date
+
+    def _next_monthly_due_date(self, anchor_date: date, today: date) -> date:
+        """Find the next monthly occurrence for an anchor day."""
+        year = max(today, anchor_date).year
+        month = max(today, anchor_date).month
+
+        while True:
+            last_day = calendar.monthrange(year, month)[1]
+            candidate = date(year, month, min(anchor_date.day, last_day))
+            if candidate >= today and candidate >= anchor_date:
+                return candidate
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
 
     def get_financial_summary(
         self, user_id: UUID, start_date: date | None = None, end_date: date | None = None
@@ -585,18 +690,16 @@ class TransactionsService:
         self, t: Transaction, transaction_date: date | datetime | None = None
     ) -> GroupTransactionResponseDTO:
         """Helper to map Transaction entity to GroupTransactionResponseDTO."""
-        response_date = (
-            transaction_date
-            if isinstance(transaction_date, date)
-            and not isinstance(transaction_date, datetime)
-            else self._to_santiago_date(transaction_date or t.transaction_date)
+        response_datetime = self._project_transaction_datetime(
+            t.transaction_date,
+            transaction_date,
         )
         user_name = f"{t.user.first_name} {t.user.last_name}" if t.user else "Desconocido"
         return GroupTransactionResponseDTO(
             transaction_id=t.transaction_id,
             amount=t.amount,
             description=t.description,
-            transaction_date=response_date,
+            transaction_date=response_datetime,
             transaction_type_id=t.transaction_type_id,
             transaction_category_id=t.transaction_category_id,
             transaction_frequency_id=t.transaction_frequency_id,

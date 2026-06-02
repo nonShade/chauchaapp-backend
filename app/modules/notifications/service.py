@@ -56,6 +56,7 @@ class NotificationsService:
             ),
             message=notification.message,
             scheduled_date=notification.scheduled_date,
+            created_at=notification.created_at,
             reference_id=notification.reference_id,
             reference_type=notification.reference_type,
         )

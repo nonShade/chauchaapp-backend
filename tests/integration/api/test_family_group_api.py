@@ -221,3 +221,53 @@ def test_remove_member_not_admin_returns_403(client: TestClient, mock_db: MagicM
         f"/v1/family-group/member?user_id={uuid.uuid4()}"
     )
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# DELETE /v1/family-group/leave — Leave group
+# ---------------------------------------------------------------------------
+
+
+def test_leave_group_success(client: TestClient, mock_db: MagicMock):
+    user_id = uuid.uuid4()
+    group_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=user_id)
+
+    membership = MagicMock(spec=GroupMember)
+    membership.family_group_id = group_id
+    mock_db.query.return_value.filter.return_value.first.side_effect = [
+        None,
+        membership,
+    ]
+
+    response = client.delete("/v1/family-group/leave")
+
+    assert response.status_code == 200
+    assert response.json()["family_group_id"] == str(group_id)
+
+
+def test_leave_group_without_group_returns_404(client: TestClient, mock_db: MagicMock):
+    user_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=user_id)
+
+    mock_db.query.return_value.filter.return_value.first.side_effect = [
+        None,
+        None,
+    ]
+
+    response = client.delete("/v1/family-group/leave")
+
+    assert response.status_code == 404
+
+
+def test_leave_group_admin_returns_400(client: TestClient, mock_db: MagicMock):
+    user_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=user_id)
+
+    mock_db.query.return_value.filter.return_value.first.return_value = _mock_group(
+        admin_id=user_id
+    )
+
+    response = client.delete("/v1/family-group/leave")
+
+    assert response.status_code == 400

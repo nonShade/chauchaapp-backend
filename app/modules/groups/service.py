@@ -303,6 +303,29 @@ class GroupsService:
         )
 
     # ------------------------------------------------------------------
+    # Leave group
+    # ------------------------------------------------------------------
+
+    def leave_group(self, user_id: UUID) -> RemoveMemberResponseDTO:
+        """Allow a non-admin member to leave their family group."""
+        if self._groups.get_group_by_admin(user_id):
+            raise ValidationException(
+                "El administrador no puede salir del grupo desde esta accion"
+            )
+
+        membership = self._groups.get_membership(user_id)
+        if not membership:
+            raise NotFoundException("No perteneces a ningun grupo familiar")
+
+        family_group_id = membership.family_group_id
+        self._groups.remove_member(membership)
+
+        return RemoveMemberResponseDTO(
+            message="Has salido del grupo familiar correctamente",
+            family_group_id=family_group_id,
+        )
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 

@@ -43,6 +43,7 @@ result-*
 .claude/
 .docs/
 AGENTS.md
+.codex_pydeps/
 
 # ===== OS =====
 .DS_Store
