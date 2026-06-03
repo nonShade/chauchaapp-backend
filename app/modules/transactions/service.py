@@ -131,15 +131,23 @@ class TransactionsService:
     def update_transaction(
         self, user_id: UUID, transaction_id: UUID, data: TransactionUpdateDTO
     ) -> TransactionResponseDTO:
-        """Update an existing transaction if it belongs to the user."""
+        """Update a personal transaction or a group transaction in user's group."""
         transaction = self._repository.get_transaction_by_id(transaction_id)
         if not transaction:
             raise NotFoundException("La transacción no existe")
 
-        if transaction.user_id != user_id:
+        is_owner = transaction.user_id == user_id
+        if not is_owner and not self._can_mutate_group_transaction(
+            user_id, transaction
+        ):
             raise ForbiddenException("No puedes editar una transacción que no te pertenece")
 
         update_data = data.model_dump(exclude_unset=True)
+
+        if not is_owner and update_data.get("is_group_transaction") is False:
+            raise ForbiddenException(
+                "No puedes convertir en personal una transacción grupal ajena"
+            )
 
         if "is_group_transaction" in update_data:
             if update_data["is_group_transaction"]:
@@ -161,7 +169,7 @@ class TransactionsService:
         )
 
         # Sync user.monthly_income when a Sueldo income transaction is updated
-        if data.amount is not None:
+        if is_owner and data.amount is not None:
             income_type = self._repository.get_transaction_type_by_name("Ingreso")
             sueldo_category = self._repository.get_transaction_category_by_name("Sueldo")
             if (
@@ -178,15 +186,38 @@ class TransactionsService:
         return self._map_to_response_dto(updated)
 
     def delete_transaction(self, user_id: UUID, transaction_id: UUID) -> bool:
-        """Delete a transaction if it belongs to the user."""
+        """Delete a personal transaction or a group transaction in user's group."""
         transaction = self._repository.get_transaction_by_id(transaction_id)
         if not transaction:
             raise NotFoundException("La transacción no existe")
 
-        if transaction.user_id != user_id:
+        if transaction.user_id != user_id and not self._can_mutate_group_transaction(
+            user_id, transaction
+        ):
             raise ForbiddenException("No tienes permiso para eliminar este registro")
 
         return self._repository.delete_transaction(transaction_id)
+
+    def _can_mutate_group_transaction(
+        self, user_id: UUID, transaction: Transaction
+    ) -> bool:
+        """Return whether user belongs to the transaction's family group."""
+        if not self._groups_repository:
+            return False
+
+        if not getattr(transaction, "is_group_transaction", False):
+            return False
+
+        family_group_id = getattr(transaction, "family_group_id", None)
+        if not family_group_id:
+            return False
+
+        admin_group = self._groups_repository.get_group_by_admin(user_id)
+        if admin_group and admin_group.family_group_id == family_group_id:
+            return True
+
+        membership = self._groups_repository.get_membership(user_id)
+        return bool(membership and membership.family_group_id == family_group_id)
 
     def get_user_transactions(
         self,

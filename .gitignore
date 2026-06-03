@@ -44,6 +44,7 @@ result-*
 .docs/
 AGENTS.md
 .codex_pydeps/
+.venv-codex/
 
 # ===== OS =====
 .DS_Store

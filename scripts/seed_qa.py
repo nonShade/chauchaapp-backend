@@ -461,6 +461,28 @@ def seed_transactions(session, family_group):
     _add_tx("carlos.munoz@test.cl", expense_type, educacion, one_time, 80000, "Curso marketing", date(2026, 5, 5))
     _add_tx("carlos.munoz@test.cl", expense_type, vivienda, one_time, 250000, "Reparación hogar", date(2026, 3, 20))
 
+    if family_group_id:
+        # Group transactions from test family members other than test_login/test_family
+        group_member_transactions = [
+            ("maria.gonzalez@test.cl", expense_type, alimentacion, one_time, 92000, "Compra familiar Lider", date(2026, 5, 6)),
+            ("maria.gonzalez@test.cl", expense_type, salud, one_time, 68000, "Medicamentos familiares", date(2026, 5, 14)),
+            ("maria.gonzalez@test.cl", expense_type, entretenimiento, one_time, 42000, "Panorama familiar", date(2026, 5, 22)),
+            ("carlos.munoz@test.cl", expense_type, transporte, one_time, 55000, "Bencina viaje familiar", date(2026, 5, 9)),
+            ("carlos.munoz@test.cl", expense_type, vivienda, monthly, 180000, "Aporte gastos comunes", date(2026, 1, 12)),
+            ("carlos.munoz@test.cl", income_type, freelance, one_time, 150000, "Reembolso familiar", date(2026, 5, 18)),
+        ]
+        for email, tx_type, category, frequency, amount, description, tx_date in group_member_transactions:
+            _add_tx(
+                email,
+                tx_type,
+                category,
+                frequency,
+                amount,
+                description,
+                tx_date,
+                family_group_id=family_group_id,
+            )
+
     # valentina.rojas@test.cl - mixed, 1,800,000
     _add_tx("valentina.rojas@test.cl", income_type, sueldo, monthly, 1800000, "Ingreso mensual", date(2026, 1, 1))
     _add_tx("valentina.rojas@test.cl", expense_type, salud, one_time, 65000, "Consulta médica", date(2026, 4, 12))

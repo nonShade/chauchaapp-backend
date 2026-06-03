@@ -321,6 +321,67 @@ WHERE source_user.email = 'test_login@chauchaapp.cl'
         END
   );
 
+-- Extra group transactions from QA members other than test_login/test_family.
+WITH group_member_transactions (
+    email,
+    transaction_type_name,
+    category_name,
+    frequency_name,
+    amount,
+    description,
+    transaction_date
+) AS (
+    VALUES
+        ('maria.gonzalez@test.cl', 'Gasto', 'Alimentación', 'Única', 92000.00, 'Compra familiar Lider', DATE '2026-05-06'),
+        ('maria.gonzalez@test.cl', 'Gasto', 'Salud', 'Única', 68000.00, 'Medicamentos familiares', DATE '2026-05-14'),
+        ('maria.gonzalez@test.cl', 'Gasto', 'Entretenimiento', 'Única', 42000.00, 'Panorama familiar', DATE '2026-05-22'),
+        ('carlos.munoz@test.cl', 'Gasto', 'Transporte', 'Única', 55000.00, 'Bencina viaje familiar', DATE '2026-05-09'),
+        ('carlos.munoz@test.cl', 'Gasto', 'Vivienda', 'Mensual', 180000.00, 'Aporte gastos comunes', DATE '2026-01-12'),
+        ('carlos.munoz@test.cl', 'Ingreso', 'Freelance', 'Única', 150000.00, 'Reembolso familiar', DATE '2026-05-18')
+)
+INSERT INTO "transaction" (
+    user_id,
+    family_group_id,
+    transaction_type_id,
+    transaction_category_id,
+    transaction_frequency_id,
+    is_group_transaction,
+    amount,
+    description,
+    transaction_date
+)
+SELECT
+    u.user_id,
+    fg.family_group_id,
+    tt.transaction_type_id,
+    tc.transaction_category_id,
+    tf.transaction_frequency_id,
+    TRUE,
+    gmt.amount,
+    gmt.description,
+    gmt.transaction_date
+FROM group_member_transactions gmt
+JOIN "user" u
+    ON u.email = gmt.email
+JOIN family_group fg
+    ON fg.name = 'Grupo Familiar Test'
+JOIN "user" admin
+    ON admin.user_id = fg.admin_id
+JOIN transaction_type tt
+    ON tt.name = gmt.transaction_type_name
+JOIN transaction_category tc
+    ON tc.name = gmt.category_name
+JOIN transaction_frequency tf
+    ON tf.name = gmt.frequency_name
+WHERE admin.email = 'test_login@chauchaapp.cl'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM "transaction" existing
+      WHERE existing.user_id = u.user_id
+        AND existing.description = gmt.description
+        AND existing.transaction_date::date = gmt.transaction_date
+  );
+
 -- ============================================================
 -- Other QA Users
 -- ============================================================

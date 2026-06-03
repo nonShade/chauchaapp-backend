@@ -13,6 +13,7 @@ from app.modules.transactions.entities import (
 )
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.transactions.service import TransactionsService
+from app.modules.groups.repository import GroupsRepository
 from app.modules.notifications.entities import NotificationStatus, NotificationType
 from app.modules.notifications.repository import NotificationsRepository
 from app.modules.transactions.dto import (
@@ -36,6 +37,11 @@ def mock_repository():
 @pytest.fixture
 def mock_user_repository():
     return MagicMock(spec=UserRepository)
+
+
+@pytest.fixture
+def mock_groups_repository():
+    return MagicMock(spec=GroupsRepository)
 
 
 @pytest.fixture
@@ -208,6 +214,120 @@ def test_update_transaction_not_owner(service, mock_repository):
         service.update_transaction(user_id, tx_id, TransactionUpdateDTO(amount=Decimal("500")))
 
 
+def test_update_group_transaction_by_group_member(
+    mock_repository,
+    mock_user_repository,
+    mock_groups_repository,
+):
+    service = TransactionsService(
+        repository=mock_repository,
+        user_repository=mock_user_repository,
+        groups_repository=mock_groups_repository,
+    )
+    owner_id = uuid.uuid4()
+    member_id = uuid.uuid4()
+    group_id = uuid.uuid4()
+    tx_id = uuid.uuid4()
+    existing_tx = Transaction(
+        transaction_id=tx_id,
+        user_id=owner_id,
+        family_group_id=group_id,
+        is_group_transaction=True,
+        amount=Decimal("1000"),
+        transaction_date=date(2026, 1, 1),
+        transaction_type_id=uuid.uuid4(),
+    )
+    updated_tx = Transaction(
+        transaction_id=tx_id,
+        user_id=owner_id,
+        family_group_id=group_id,
+        is_group_transaction=True,
+        amount=Decimal("1500"),
+        transaction_date=date(2026, 1, 1),
+        transaction_type_id=existing_tx.transaction_type_id,
+    )
+    membership = MagicMock()
+    membership.family_group_id = group_id
+    mock_repository.get_transaction_by_id.return_value = existing_tx
+    mock_repository.update_transaction.return_value = updated_tx
+    mock_groups_repository.get_group_by_admin.return_value = None
+    mock_groups_repository.get_membership.return_value = membership
+
+    result = service.update_transaction(
+        member_id,
+        tx_id,
+        TransactionUpdateDTO(amount=Decimal("1500")),
+    )
+
+    assert result.amount == Decimal("1500")
+    mock_repository.update_transaction.assert_called_once()
+
+
+def test_update_group_transaction_by_non_member_raises(
+    mock_repository,
+    mock_user_repository,
+    mock_groups_repository,
+):
+    service = TransactionsService(
+        repository=mock_repository,
+        user_repository=mock_user_repository,
+        groups_repository=mock_groups_repository,
+    )
+    tx = Transaction(
+        transaction_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        family_group_id=uuid.uuid4(),
+        is_group_transaction=True,
+        amount=Decimal("1000"),
+        transaction_date=date(2026, 1, 1),
+        transaction_type_id=uuid.uuid4(),
+    )
+    mock_repository.get_transaction_by_id.return_value = tx
+    mock_groups_repository.get_group_by_admin.return_value = None
+    mock_groups_repository.get_membership.return_value = None
+
+    with pytest.raises(ForbiddenException):
+        service.update_transaction(
+            uuid.uuid4(),
+            tx.transaction_id,
+            TransactionUpdateDTO(amount=Decimal("500")),
+        )
+
+
+def test_group_member_cannot_make_another_users_group_transaction_personal(
+    mock_repository,
+    mock_user_repository,
+    mock_groups_repository,
+):
+    service = TransactionsService(
+        repository=mock_repository,
+        user_repository=mock_user_repository,
+        groups_repository=mock_groups_repository,
+    )
+    group_id = uuid.uuid4()
+    tx = Transaction(
+        transaction_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        family_group_id=group_id,
+        is_group_transaction=True,
+        amount=Decimal("1000"),
+        transaction_date=date(2026, 1, 1),
+        transaction_type_id=uuid.uuid4(),
+    )
+    membership = MagicMock()
+    membership.family_group_id = group_id
+    mock_repository.get_transaction_by_id.return_value = tx
+    mock_groups_repository.get_group_by_admin.return_value = None
+    mock_groups_repository.get_membership.return_value = membership
+
+    with pytest.raises(ForbiddenException):
+        service.update_transaction(
+            uuid.uuid4(),
+            tx.transaction_id,
+            TransactionUpdateDTO(is_group_transaction=False),
+        )
+
+
 def test_delete_transaction_success(service, mock_repository):
     # Arrange
     user_id = uuid.uuid4()
@@ -222,6 +342,36 @@ def test_delete_transaction_success(service, mock_repository):
     # Assert
     assert result is True
     mock_repository.delete_transaction.assert_called_once_with(tx_id)
+
+
+def test_delete_group_transaction_by_group_member(
+    mock_repository,
+    mock_user_repository,
+    mock_groups_repository,
+):
+    service = TransactionsService(
+        repository=mock_repository,
+        user_repository=mock_user_repository,
+        groups_repository=mock_groups_repository,
+    )
+    group_id = uuid.uuid4()
+    tx = Transaction(
+        transaction_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        family_group_id=group_id,
+        is_group_transaction=True,
+    )
+    membership = MagicMock()
+    membership.family_group_id = group_id
+    mock_repository.get_transaction_by_id.return_value = tx
+    mock_repository.delete_transaction.return_value = True
+    mock_groups_repository.get_group_by_admin.return_value = None
+    mock_groups_repository.get_membership.return_value = membership
+
+    result = service.delete_transaction(uuid.uuid4(), tx.transaction_id)
+
+    assert result is True
+    mock_repository.delete_transaction.assert_called_once_with(tx.transaction_id)
 
 
 def test_get_user_transactions(service, mock_repository):
