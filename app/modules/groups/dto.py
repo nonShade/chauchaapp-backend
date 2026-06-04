@@ -45,6 +45,7 @@ class GroupMemberResponseDTO(BaseModel):
     first_name: str
     last_name: str
     email: str
+    income_contribution_percentage: float = 0.0
 
     model_config = {"from_attributes": True}
 

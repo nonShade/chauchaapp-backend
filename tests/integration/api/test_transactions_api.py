@@ -1,5 +1,5 @@
 from datetime import date
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import uuid
 
 from fastapi.testclient import TestClient
@@ -10,6 +10,7 @@ from app.modules.transactions.entities import (
     TransactionFrequency,
     TransactionType,
 )
+from app.modules.groups.entities import GroupMember
 from app.shared.security.auth_middleware import get_current_user
 from main import app
 
@@ -112,7 +113,7 @@ def test_list_transactions_api(client: TestClient, mock_db: MagicMock):
     )
     
     # Mock the eager-load query path
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [tx]
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [tx]
 
     response = client.get("/v1/transactions/individual?page=1&limit=10")
     
@@ -145,7 +146,7 @@ def test_get_financial_summary_api(client: TestClient, mock_db: MagicMock):
     expense_tx.transaction_frequency = None
 
     # Mock the eager-load query path
-    mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
+    mock_db.query.return_value.options.return_value.filter.return_value.filter.return_value.all.return_value = [
         income_tx, expense_tx
     ]
 
@@ -156,3 +157,92 @@ def test_get_financial_summary_api(client: TestClient, mock_db: MagicMock):
     assert str(data["total_income"]) == "1000"
     assert str(data["total_expenses"]) == "400"
     assert str(data["total_balance"]) == "600"
+
+
+def test_update_group_transaction_by_group_member_api(client: TestClient, mock_db: MagicMock):
+    member_id = uuid.uuid4()
+    owner_id = uuid.uuid4()
+    group_id = uuid.uuid4()
+    tx_id = uuid.uuid4()
+    type_id = uuid.uuid4()
+    mock_user = MagicMock()
+    mock_user.user_id = member_id
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    existing_tx = Transaction(
+        transaction_id=tx_id,
+        user_id=owner_id,
+        family_group_id=group_id,
+        is_group_transaction=True,
+        amount=1000,
+        transaction_date=date(2026, 1, 1),
+        transaction_type_id=type_id,
+    )
+    updated_tx = Transaction(
+        transaction_id=tx_id,
+        user_id=owner_id,
+        family_group_id=group_id,
+        is_group_transaction=True,
+        amount=1500,
+        transaction_date=date(2026, 1, 1),
+        transaction_type_id=type_id,
+    )
+    membership = MagicMock(spec=GroupMember)
+    membership.family_group_id = group_id
+
+    with patch(
+        "app.modules.transactions.repository.TransactionsRepository.get_transaction_by_id",
+        return_value=existing_tx,
+    ), patch(
+        "app.modules.groups.repository.GroupsRepository.get_group_by_admin",
+        return_value=None,
+    ), patch(
+        "app.modules.groups.repository.GroupsRepository.get_membership",
+        return_value=membership,
+    ), patch(
+        "app.modules.transactions.repository.TransactionsRepository.update_transaction",
+        return_value=updated_tx,
+    ):
+        response = client.put(
+            f"/v1/transactions/{tx_id}",
+            json={"amount": 1500},
+        )
+
+    assert response.status_code == 200
+    assert str(response.json()["amount"]) == "1500"
+
+
+def test_delete_group_transaction_by_group_member_api(client: TestClient, mock_db: MagicMock):
+    member_id = uuid.uuid4()
+    owner_id = uuid.uuid4()
+    group_id = uuid.uuid4()
+    tx_id = uuid.uuid4()
+    mock_user = MagicMock()
+    mock_user.user_id = member_id
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    existing_tx = Transaction(
+        transaction_id=tx_id,
+        user_id=owner_id,
+        family_group_id=group_id,
+        is_group_transaction=True,
+    )
+    membership = MagicMock(spec=GroupMember)
+    membership.family_group_id = group_id
+
+    with patch(
+        "app.modules.transactions.repository.TransactionsRepository.get_transaction_by_id",
+        return_value=existing_tx,
+    ), patch(
+        "app.modules.groups.repository.GroupsRepository.get_group_by_admin",
+        return_value=None,
+    ), patch(
+        "app.modules.groups.repository.GroupsRepository.get_membership",
+        return_value=membership,
+    ), patch(
+        "app.modules.transactions.repository.TransactionsRepository.delete_transaction",
+        return_value=True,
+    ):
+        response = client.delete(f"/v1/transactions/{tx_id}")
+
+    assert response.status_code == 204

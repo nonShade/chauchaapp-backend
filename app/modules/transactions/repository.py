@@ -52,6 +52,16 @@ class TransactionsRepository:
             .first()
         )
 
+    def get_transaction_type_by_id(
+        self, transaction_type_id: UUID
+    ) -> TransactionType | None:
+        """Find a transaction type by its ID."""
+        return (
+            self._session.query(TransactionType)
+            .filter(TransactionType.transaction_type_id == transaction_type_id)
+            .first()
+        )
+
     def get_transaction_category_by_name(self, name: str) -> TransactionCategory | None:
         """Find a transaction category by its name."""
         return (
@@ -65,6 +75,19 @@ class TransactionsRepository:
         return (
             self._session.query(TransactionFrequency)
             .filter(TransactionFrequency.name == name)
+            .first()
+        )
+
+    def get_transaction_frequency_by_id(
+        self, transaction_frequency_id: UUID
+    ) -> TransactionFrequency | None:
+        """Find a transaction frequency by its ID."""
+        return (
+            self._session.query(TransactionFrequency)
+            .filter(
+                TransactionFrequency.transaction_frequency_id
+                == transaction_frequency_id
+            )
             .first()
         )
 
@@ -215,6 +238,10 @@ class TransactionsRepository:
                 joinedload(Transaction.user),
             )
             .filter(Transaction.user_id == user_id)
+            .filter(
+                (Transaction.is_group_transaction == False)
+                | (Transaction.is_group_transaction.is_(None))
+            )
             .all()
         )
 
@@ -238,6 +265,7 @@ class TransactionsRepository:
                 joinedload(Transaction.user),
             )
             .filter(Transaction.user_id.in_(user_ids))
+            .filter(Transaction.is_group_transaction == True)
             .all()
         )
 

@@ -2,11 +2,14 @@
 Groups repository — data access layer.
 """
 
+from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.groups.entities import FamilyGroup, GroupJoinRequest, GroupMember
+from app.modules.transactions.entities import Transaction, TransactionType
 from app.modules.users.entities import User
 
 
@@ -45,6 +48,26 @@ class GroupsRepository:
             self._session.query(FamilyGroup)
             .filter(FamilyGroup.admin_id == admin_id)
             .first()
+        )
+
+    def get_group_income_contributions(
+        self, group_id: UUID
+    ) -> list[tuple[UUID, Decimal]]:
+        """Return grouped income contributions for a family group."""
+        return (
+            self._session.query(
+                Transaction.user_id,
+                func.coalesce(func.sum(Transaction.amount), 0),
+            )
+            .join(
+                TransactionType,
+                Transaction.transaction_type_id == TransactionType.transaction_type_id,
+            )
+            .filter(Transaction.family_group_id == group_id)
+            .filter(Transaction.is_group_transaction.is_(True))
+            .filter(func.lower(TransactionType.name) == "ingreso")
+            .group_by(Transaction.user_id)
+            .all()
         )
 
     # ------------------------------------------------------------------

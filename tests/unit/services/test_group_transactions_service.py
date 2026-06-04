@@ -173,7 +173,11 @@ def test_get_group_financial_summary(service, mock_repository, mock_groups_repos
     ]
 
     # Act
-    result = service.get_group_financial_summary(user_id)
+    result = service.get_group_financial_summary(
+        user_id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 31),
+    )
 
     # Assert
     assert result.total_income == Decimal("2000")
@@ -205,7 +209,11 @@ def test_get_group_expense_distribution(service, mock_repository, mock_groups_re
     mock_repository.get_all_group_transactions_eager.return_value = [expense_tx1, expense_tx2]
 
     # Act
-    result = service.get_group_expense_distribution(user_id)
+    result = service.get_group_expense_distribution(
+        user_id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 31),
+    )
 
     # Assert
     assert len(result) == 1
