@@ -432,46 +432,57 @@ def seed_transactions(session, family_group):
             family_group_id=None,
         )
 
-    for tx_type, category, frequency, amount, description, tx_date in test_login_transactions:
-        family_tx_date = date(2026, 1, 2) if description == "Sueldo mensual" else tx_date
-        _add_tx(
-            "test_family@chauchaapp.cl",
-            tx_type,
-            category,
-            frequency,
-            amount,
-            description,
-            family_tx_date,
-            family_group_id=family_group_id,
-        )
-
     # =========================================
-    # Other QA users
+    # Family group QA members
     # =========================================
 
-    # maria.gonzalez@test.cl - salaried, 1,500,000
-    _add_tx("maria.gonzalez@test.cl", income_type, sueldo, monthly, 1500000, "Sueldo mensual", date(2026, 1, 1))
-    _add_tx("maria.gonzalez@test.cl", expense_type, alimentacion, one_time, 85000, "Supermercado mensual", date(2026, 4, 3))
-    _add_tx("maria.gonzalez@test.cl", expense_type, salud, one_time, 45000, "Farmacia", date(2026, 4, 15))
-    _add_tx("maria.gonzalez@test.cl", expense_type, entretenimiento, one_time, 35000, "Salida familiar", date(2026, 5, 10))
+    family_member_transactions = {
+        "test_family@chauchaapp.cl": {
+            "personal": [
+                (income_type, sueldo, monthly, 850000, "Sueldo mensual", date(2026, 1, 1)),
+                (income_type, freelance, one_time, 135000, "Proyecto personal QA", date(2026, 4, 14)),
+                (expense_type, vivienda, monthly, 320000, "Arriendo personal", date(2026, 1, 5)),
+                (expense_type, alimentacion, one_time, 72000, "Supermercado personal", date(2026, 4, 9)),
+            ],
+            "group": [
+                (income_type, freelance, one_time, 90000, "Aporte familiar test family", date(2026, 5, 2)),
+                (income_type, inversiones, one_time, 35000, "Retorno fondo familiar test", date(2026, 5, 11)),
+                (expense_type, vivienda, monthly, 145000, "Gastos comunes familiares test", date(2026, 1, 12)),
+                (expense_type, entretenimiento, one_time, 48000, "Actividad familiar test", date(2026, 5, 18)),
+            ],
+        },
+        "maria.gonzalez@test.cl": {
+            "personal": [
+                (income_type, sueldo, monthly, 1500000, "Sueldo mensual", date(2026, 1, 1)),
+                (income_type, inversiones, one_time, 85000, "Dividendos personales Maria", date(2026, 4, 17)),
+                (expense_type, alimentacion, one_time, 85000, "Supermercado mensual", date(2026, 4, 3)),
+                (expense_type, salud, one_time, 45000, "Farmacia", date(2026, 4, 15)),
+            ],
+            "group": [
+                (income_type, freelance, one_time, 120000, "Aporte familiar Maria", date(2026, 5, 4)),
+                (income_type, inversiones, one_time, 42000, "Retorno fondo familiar Maria", date(2026, 5, 16)),
+                (expense_type, alimentacion, one_time, 92000, "Compra familiar Lider", date(2026, 5, 6)),
+                (expense_type, salud, one_time, 68000, "Medicamentos familiares", date(2026, 5, 14)),
+            ],
+        },
+        "carlos.munoz@test.cl": {
+            "personal": [
+                (income_type, sueldo, monthly, 2000000, "Ingreso mensual", date(2026, 1, 1)),
+                (income_type, freelance, one_time, 210000, "Asesoria personal Carlos", date(2026, 4, 19)),
+                (expense_type, transporte, one_time, 120000, "Mantencion vehiculo", date(2026, 4, 8)),
+                (expense_type, educacion, one_time, 80000, "Curso marketing", date(2026, 5, 5)),
+            ],
+            "group": [
+                (income_type, freelance, one_time, 150000, "Reembolso familiar Carlos", date(2026, 5, 18)),
+                (income_type, inversiones, one_time, 60000, "Retorno fondo familiar Carlos", date(2026, 5, 24)),
+                (expense_type, transporte, one_time, 55000, "Bencina viaje familiar", date(2026, 5, 9)),
+                (expense_type, vivienda, monthly, 180000, "Aporte gastos comunes", date(2026, 1, 12)),
+            ],
+        },
+    }
 
-    # carlos.munoz@test.cl - independent, 2,000,000
-    _add_tx("carlos.munoz@test.cl", income_type, sueldo, monthly, 2000000, "Ingreso mensual", date(2026, 1, 1))
-    _add_tx("carlos.munoz@test.cl", expense_type, transporte, one_time, 120000, "Mantención vehículo", date(2026, 4, 8))
-    _add_tx("carlos.munoz@test.cl", expense_type, educacion, one_time, 80000, "Curso marketing", date(2026, 5, 5))
-    _add_tx("carlos.munoz@test.cl", expense_type, vivienda, one_time, 250000, "Reparación hogar", date(2026, 3, 20))
-
-    if family_group_id:
-        # Group transactions from test family members other than test_login/test_family
-        group_member_transactions = [
-            ("maria.gonzalez@test.cl", expense_type, alimentacion, one_time, 92000, "Compra familiar Lider", date(2026, 5, 6)),
-            ("maria.gonzalez@test.cl", expense_type, salud, one_time, 68000, "Medicamentos familiares", date(2026, 5, 14)),
-            ("maria.gonzalez@test.cl", expense_type, entretenimiento, one_time, 42000, "Panorama familiar", date(2026, 5, 22)),
-            ("carlos.munoz@test.cl", expense_type, transporte, one_time, 55000, "Bencina viaje familiar", date(2026, 5, 9)),
-            ("carlos.munoz@test.cl", expense_type, vivienda, monthly, 180000, "Aporte gastos comunes", date(2026, 1, 12)),
-            ("carlos.munoz@test.cl", income_type, freelance, one_time, 150000, "Reembolso familiar", date(2026, 5, 18)),
-        ]
-        for email, tx_type, category, frequency, amount, description, tx_date in group_member_transactions:
+    for email, transaction_groups in family_member_transactions.items():
+        for tx_type, category, frequency, amount, description, tx_date in transaction_groups["personal"]:
             _add_tx(
                 email,
                 tx_type,
@@ -480,8 +491,21 @@ def seed_transactions(session, family_group):
                 amount,
                 description,
                 tx_date,
-                family_group_id=family_group_id,
+                family_group_id=None,
             )
+
+        if family_group_id:
+            for tx_type, category, frequency, amount, description, tx_date in transaction_groups["group"]:
+                _add_tx(
+                    email,
+                    tx_type,
+                    category,
+                    frequency,
+                    amount,
+                    description,
+                    tx_date,
+                    family_group_id=family_group_id,
+                )
 
     # valentina.rojas@test.cl - mixed, 1,800,000
     _add_tx("valentina.rojas@test.cl", income_type, sueldo, monthly, 1800000, "Ingreso mensual", date(2026, 1, 1))

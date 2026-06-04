@@ -278,51 +278,9 @@ WHERE admin.email = 'test_login@chauchaapp.cl'
   );
 
 
--- Copy admin's transactions to the family member (test_family), also marked as group transactions
-INSERT INTO "transaction" (
-    user_id,
-    family_group_id,
-    transaction_type_id,
-    transaction_category_id,
-    transaction_frequency_id,
-    is_group_transaction,
-    amount,
-    description,
-    transaction_date
-)
-SELECT
-    family_user.user_id,
-    fg.family_group_id,
-    t.transaction_type_id,
-    t.transaction_category_id,
-    t.transaction_frequency_id,
-    TRUE,
-    t.amount,
-    t.description,
-    CASE
-        WHEN t.description = 'Sueldo mensual' THEN TIMESTAMP WITH TIME ZONE '2026-01-02 00:00:00-03'
-        ELSE t.transaction_date
-    END
-FROM "transaction" t
-JOIN "user" source_user ON source_user.user_id = t.user_id
-JOIN "user" family_user ON family_user.email = 'test_family@chauchaapp.cl'
-JOIN family_group fg ON fg.name = 'Grupo Familiar Test'
-JOIN "user" admin ON admin.user_id = fg.admin_id
-WHERE source_user.email = 'test_login@chauchaapp.cl'
-  AND admin.email = 'test_login@chauchaapp.cl'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM "transaction" existing
-      WHERE existing.user_id = family_user.user_id
-        AND existing.description = t.description
-        AND existing.transaction_date = CASE
-            WHEN t.description = 'Sueldo mensual' THEN TIMESTAMP WITH TIME ZONE '2026-01-02 00:00:00-03'
-            ELSE t.transaction_date
-        END
-  );
-
--- Extra group transactions from QA members other than test_login/test_family.
-WITH group_member_transactions (
+-- Family group QA member personal transactions.
+-- Salary transactions stay personal and must never appear in the family group ledger.
+WITH family_member_personal_transactions (
     email,
     transaction_type_name,
     category_name,
@@ -332,12 +290,78 @@ WITH group_member_transactions (
     transaction_date
 ) AS (
     VALUES
-        ('maria.gonzalez@test.cl', 'Gasto', 'Alimentación', 'Única', 92000.00, 'Compra familiar Lider', DATE '2026-05-06'),
-        ('maria.gonzalez@test.cl', 'Gasto', 'Salud', 'Única', 68000.00, 'Medicamentos familiares', DATE '2026-05-14'),
-        ('maria.gonzalez@test.cl', 'Gasto', 'Entretenimiento', 'Única', 42000.00, 'Panorama familiar', DATE '2026-05-22'),
-        ('carlos.munoz@test.cl', 'Gasto', 'Transporte', 'Única', 55000.00, 'Bencina viaje familiar', DATE '2026-05-09'),
-        ('carlos.munoz@test.cl', 'Gasto', 'Vivienda', 'Mensual', 180000.00, 'Aporte gastos comunes', DATE '2026-01-12'),
-        ('carlos.munoz@test.cl', 'Ingreso', 'Freelance', 'Única', 150000.00, 'Reembolso familiar', DATE '2026-05-18')
+        ('test_family@chauchaapp.cl', 'Ingreso', 'Sueldo', 'Mensual', 850000.00, 'Sueldo mensual', TIMESTAMP WITH TIME ZONE '2026-01-01 09:00:00-03'),
+        ('test_family@chauchaapp.cl', 'Ingreso', 'Freelance', 'Única', 135000.00, 'Proyecto personal QA', TIMESTAMP WITH TIME ZONE '2026-04-14 10:10:00-03'),
+        ('test_family@chauchaapp.cl', 'Gasto', 'Vivienda', 'Mensual', 320000.00, 'Arriendo personal', TIMESTAMP WITH TIME ZONE '2026-01-05 11:20:00-03'),
+        ('test_family@chauchaapp.cl', 'Gasto', 'Alimentación', 'Única', 72000.00, 'Supermercado personal', TIMESTAMP WITH TIME ZONE '2026-04-09 12:30:00-03'),
+        ('maria.gonzalez@test.cl', 'Ingreso', 'Sueldo', 'Mensual', 1500000.00, 'Sueldo mensual', TIMESTAMP WITH TIME ZONE '2026-01-01 09:15:00-03'),
+        ('maria.gonzalez@test.cl', 'Ingreso', 'Inversiones', 'Única', 85000.00, 'Dividendos personales Maria', TIMESTAMP WITH TIME ZONE '2026-04-17 10:25:00-03'),
+        ('maria.gonzalez@test.cl', 'Gasto', 'Alimentación', 'Única', 85000.00, 'Supermercado mensual', TIMESTAMP WITH TIME ZONE '2026-04-03 11:35:00-03'),
+        ('maria.gonzalez@test.cl', 'Gasto', 'Salud', 'Única', 45000.00, 'Farmacia', TIMESTAMP WITH TIME ZONE '2026-04-15 12:45:00-03'),
+        ('carlos.munoz@test.cl', 'Ingreso', 'Sueldo', 'Mensual', 2000000.00, 'Ingreso mensual', TIMESTAMP WITH TIME ZONE '2026-01-01 09:30:00-03'),
+        ('carlos.munoz@test.cl', 'Ingreso', 'Freelance', 'Única', 210000.00, 'Asesoria personal Carlos', TIMESTAMP WITH TIME ZONE '2026-04-19 10:40:00-03'),
+        ('carlos.munoz@test.cl', 'Gasto', 'Transporte', 'Única', 120000.00, 'Mantencion vehiculo', TIMESTAMP WITH TIME ZONE '2026-04-08 11:50:00-03'),
+        ('carlos.munoz@test.cl', 'Gasto', 'Educación', 'Única', 80000.00, 'Curso marketing', TIMESTAMP WITH TIME ZONE '2026-05-05 13:00:00-03')
+)
+INSERT INTO "transaction" (
+    user_id,
+    transaction_type_id,
+    transaction_category_id,
+    transaction_frequency_id,
+    is_group_transaction,
+    amount,
+    description,
+    transaction_date
+)
+SELECT
+    u.user_id,
+    tt.transaction_type_id,
+    tc.transaction_category_id,
+    tf.transaction_frequency_id,
+    FALSE,
+    fmt.amount,
+    fmt.description,
+    fmt.transaction_date
+FROM family_member_personal_transactions fmt
+JOIN "user" u
+    ON u.email = fmt.email
+JOIN transaction_type tt
+    ON tt.name = fmt.transaction_type_name
+JOIN transaction_category tc
+    ON tc.name = fmt.category_name
+JOIN transaction_frequency tf
+    ON tf.name = fmt.frequency_name
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM "transaction" existing
+    WHERE existing.user_id = u.user_id
+      AND existing.description = fmt.description
+      AND existing.transaction_date = fmt.transaction_date
+);
+
+-- Family group QA member contribution transactions.
+WITH family_member_group_transactions (
+    email,
+    transaction_type_name,
+    category_name,
+    frequency_name,
+    amount,
+    description,
+    transaction_date
+) AS (
+    VALUES
+        ('test_family@chauchaapp.cl', 'Ingreso', 'Freelance', 'Única', 90000.00, 'Aporte familiar test family', TIMESTAMP WITH TIME ZONE '2026-05-02 09:05:00-03'),
+        ('test_family@chauchaapp.cl', 'Ingreso', 'Inversiones', 'Única', 35000.00, 'Retorno fondo familiar test', TIMESTAMP WITH TIME ZONE '2026-05-11 10:15:00-03'),
+        ('test_family@chauchaapp.cl', 'Gasto', 'Vivienda', 'Mensual', 145000.00, 'Gastos comunes familiares test', TIMESTAMP WITH TIME ZONE '2026-01-12 11:25:00-03'),
+        ('test_family@chauchaapp.cl', 'Gasto', 'Entretenimiento', 'Única', 48000.00, 'Actividad familiar test', TIMESTAMP WITH TIME ZONE '2026-05-18 12:35:00-03'),
+        ('maria.gonzalez@test.cl', 'Ingreso', 'Freelance', 'Única', 120000.00, 'Aporte familiar Maria', TIMESTAMP WITH TIME ZONE '2026-05-04 09:20:00-03'),
+        ('maria.gonzalez@test.cl', 'Ingreso', 'Inversiones', 'Única', 42000.00, 'Retorno fondo familiar Maria', TIMESTAMP WITH TIME ZONE '2026-05-16 10:30:00-03'),
+        ('maria.gonzalez@test.cl', 'Gasto', 'Alimentación', 'Única', 92000.00, 'Compra familiar Lider', TIMESTAMP WITH TIME ZONE '2026-05-06 11:40:00-03'),
+        ('maria.gonzalez@test.cl', 'Gasto', 'Salud', 'Única', 68000.00, 'Medicamentos familiares', TIMESTAMP WITH TIME ZONE '2026-05-14 12:50:00-03'),
+        ('carlos.munoz@test.cl', 'Ingreso', 'Freelance', 'Única', 150000.00, 'Reembolso familiar Carlos', TIMESTAMP WITH TIME ZONE '2026-05-18 09:35:00-03'),
+        ('carlos.munoz@test.cl', 'Ingreso', 'Inversiones', 'Única', 60000.00, 'Retorno fondo familiar Carlos', TIMESTAMP WITH TIME ZONE '2026-05-24 10:45:00-03'),
+        ('carlos.munoz@test.cl', 'Gasto', 'Transporte', 'Única', 55000.00, 'Bencina viaje familiar', TIMESTAMP WITH TIME ZONE '2026-05-09 11:55:00-03'),
+        ('carlos.munoz@test.cl', 'Gasto', 'Vivienda', 'Mensual', 180000.00, 'Aporte gastos comunes', TIMESTAMP WITH TIME ZONE '2026-01-12 13:05:00-03')
 )
 INSERT INTO "transaction" (
     user_id,
@@ -357,68 +381,31 @@ SELECT
     tc.transaction_category_id,
     tf.transaction_frequency_id,
     TRUE,
-    gmt.amount,
-    gmt.description,
-    gmt.transaction_date
-FROM group_member_transactions gmt
+    fgt.amount,
+    fgt.description,
+    fgt.transaction_date
+FROM family_member_group_transactions fgt
 JOIN "user" u
-    ON u.email = gmt.email
+    ON u.email = fgt.email
 JOIN family_group fg
     ON fg.name = 'Grupo Familiar Test'
 JOIN "user" admin
     ON admin.user_id = fg.admin_id
 JOIN transaction_type tt
-    ON tt.name = gmt.transaction_type_name
+    ON tt.name = fgt.transaction_type_name
 JOIN transaction_category tc
-    ON tc.name = gmt.category_name
+    ON tc.name = fgt.category_name
 JOIN transaction_frequency tf
-    ON tf.name = gmt.frequency_name
+    ON tf.name = fgt.frequency_name
 WHERE admin.email = 'test_login@chauchaapp.cl'
   AND NOT EXISTS (
       SELECT 1
       FROM "transaction" existing
       WHERE existing.user_id = u.user_id
-        AND existing.description = gmt.description
-        AND existing.transaction_date::date = gmt.transaction_date
+        AND existing.family_group_id = fg.family_group_id
+        AND existing.description = fgt.description
+        AND existing.transaction_date = fgt.transaction_date
   );
-
--- ============================================================
--- Other QA Users
--- ============================================================
-
--- maria.gonzalez@test.cl - salaried, 1,500,000 — personal (is_group_transaction = FALSE)
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 1500000.00, 'Sueldo mensual', '2026-01-01'
-FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
-
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Alimentación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 85000.00, 'Supermercado mensual', '2026-04-03'
-FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
-
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Salud'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 45000.00, 'Farmacia', '2026-04-15'
-FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
-
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Entretenimiento'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 35000.00, 'Salida familiar', '2026-05-10'
-FROM "user" u WHERE u.email = 'maria.gonzalez@test.cl' ON CONFLICT DO NOTHING;
-
--- carlos.munoz@test.cl - independent, 2,000,000
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Ingreso'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Sueldo'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Mensual'), FALSE, 2000000.00, 'Ingreso mensual', '2026-01-01'
-FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
-
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Transporte'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 120000.00, 'Mantención vehículo', '2026-04-08'
-FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
-
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Educación'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 80000.00, 'Curso marketing', '2026-05-05'
-FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
-
-INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
-SELECT u.user_id, (SELECT transaction_type_id FROM transaction_type WHERE name = 'Gasto'), (SELECT transaction_category_id FROM transaction_category WHERE name = 'Vivienda'), (SELECT transaction_frequency_id FROM transaction_frequency WHERE name = 'Única'), FALSE, 250000.00, 'Reparación hogar', '2026-03-20'
-FROM "user" u WHERE u.email = 'carlos.munoz@test.cl' ON CONFLICT DO NOTHING;
 
 -- valentina.rojas@test.cl - mixed, 1,800,000
 INSERT INTO "transaction" (user_id, transaction_type_id, transaction_category_id, transaction_frequency_id, is_group_transaction, amount, description, transaction_date)
