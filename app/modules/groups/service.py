@@ -3,6 +3,7 @@ Groups service — business logic layer.
 """
 
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from app.modules.groups.dto import (
@@ -335,11 +336,18 @@ class GroupsService:
         if not group:
             raise NotFoundException("Grupo familiar no encontrado")
 
+        contribution_percentages = self._get_income_contribution_percentages(
+            group.family_group_id
+        )
+
         admin_dto = GroupMemberResponseDTO(
             user_id=group.admin.user_id,
             first_name=group.admin.first_name,
             last_name=group.admin.last_name,
             email=group.admin.email,
+            income_contribution_percentage=contribution_percentages.get(
+                group.admin.user_id, 0.0
+            ),
         )
 
         members_dto = [
@@ -348,6 +356,9 @@ class GroupsService:
                 first_name=m.user.first_name,
                 last_name=m.user.last_name,
                 email=m.user.email,
+                income_contribution_percentage=contribution_percentages.get(
+                    m.user.user_id, 0.0
+                ),
             )
             for m in group.members
             if m.user_id != group.admin_id  # exclude admin from members list
@@ -359,3 +370,25 @@ class GroupsService:
             admin=admin_dto,
             members=members_dto,
         )
+
+    def _get_income_contribution_percentages(
+        self, group_id: UUID
+    ) -> dict[UUID, float]:
+        """Return each user's percentage of group income contributions."""
+        rows = self._groups.get_group_income_contributions(group_id)
+        contributions = {
+            user_id: Decimal(str(amount or 0))
+            for user_id, amount in rows
+        }
+        total_income = sum(contributions.values(), Decimal("0"))
+        if total_income <= 0:
+            return {}
+
+        return {
+            user_id: float(
+                ((amount / total_income) * Decimal("100")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+            )
+            for user_id, amount in contributions.items()
+        }

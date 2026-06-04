@@ -350,6 +350,10 @@ WITH family_member_group_transactions (
     transaction_date
 ) AS (
     VALUES
+        ('test_login@chauchaapp.cl', 'Ingreso', 'Freelance', 'Única', 110000.00, 'Aporte familiar admin', TIMESTAMP WITH TIME ZONE '2026-05-03 09:10:00-03'),
+        ('test_login@chauchaapp.cl', 'Ingreso', 'Inversiones', 'Única', 45000.00, 'Retorno fondo familiar admin', TIMESTAMP WITH TIME ZONE '2026-05-13 10:20:00-03'),
+        ('test_login@chauchaapp.cl', 'Gasto', 'Servicios Básicos', 'Mensual', 52000.00, 'Internet familiar admin', TIMESTAMP WITH TIME ZONE '2026-01-10 11:30:00-03'),
+        ('test_login@chauchaapp.cl', 'Gasto', 'Alimentación', 'Única', 76000.00, 'Compra familiar admin', TIMESTAMP WITH TIME ZONE '2026-05-21 12:40:00-03'),
         ('test_family@chauchaapp.cl', 'Ingreso', 'Freelance', 'Única', 90000.00, 'Aporte familiar test family', TIMESTAMP WITH TIME ZONE '2026-05-02 09:05:00-03'),
         ('test_family@chauchaapp.cl', 'Ingreso', 'Inversiones', 'Única', 35000.00, 'Retorno fondo familiar test', TIMESTAMP WITH TIME ZONE '2026-05-11 10:15:00-03'),
         ('test_family@chauchaapp.cl', 'Gasto', 'Vivienda', 'Mensual', 145000.00, 'Gastos comunes familiares test', TIMESTAMP WITH TIME ZONE '2026-01-12 11:25:00-03'),

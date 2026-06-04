@@ -437,6 +437,15 @@ def seed_transactions(session, family_group):
     # =========================================
 
     family_member_transactions = {
+        "test_login@chauchaapp.cl": {
+            "personal": [],
+            "group": [
+                (income_type, freelance, one_time, 110000, "Aporte familiar admin", date(2026, 5, 3)),
+                (income_type, inversiones, one_time, 45000, "Retorno fondo familiar admin", date(2026, 5, 13)),
+                (expense_type, servicios_basicos, monthly, 52000, "Internet familiar admin", date(2026, 1, 10)),
+                (expense_type, alimentacion, one_time, 76000, "Compra familiar admin", date(2026, 5, 21)),
+            ],
+        },
         "test_family@chauchaapp.cl": {
             "personal": [
                 (income_type, sueldo, monthly, 850000, "Sueldo mensual", date(2026, 1, 1)),

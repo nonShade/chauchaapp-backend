@@ -4,6 +4,7 @@ Unit tests for GroupsService.
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,7 +30,9 @@ from app.shared.exceptions import (
 
 @pytest.fixture
 def mock_groups_repo():
-    return MagicMock(spec=GroupsRepository)
+    repo = MagicMock(spec=GroupsRepository)
+    repo.get_group_income_contributions.return_value = []
+    return repo
 
 
 @pytest.fixture
@@ -60,6 +63,13 @@ def _make_group(group_id=None, admin_id=None, name="Mi Grupo"):
     group.admin = admin
     group.members = []
     return group
+
+
+def _make_group_member(user):
+    member = MagicMock(spec=GroupMember)
+    member.user_id = user.user_id
+    member.user = user
+    return member
 
 
 def _make_join_request(request_id=None, group_id=None, requester_id=None, status="pending"):
@@ -132,6 +142,49 @@ class TestGetMyGroup:
         result = service.get_my_group(admin_id)
 
         assert result.family_group_id == group.family_group_id
+
+    def test_returns_income_contribution_percentages(
+        self, service, mock_groups_repo
+    ):
+        admin_id = uuid.uuid4()
+        member_id = uuid.uuid4()
+        group = _make_group(admin_id=admin_id)
+        member_user = _make_user(user_id=member_id, email="member@test.cl")
+        group.members = [
+            _make_group_member(group.admin),
+            _make_group_member(member_user),
+        ]
+        mock_groups_repo.get_group_by_admin.return_value = group
+        mock_groups_repo.get_group_by_id.return_value = group
+        mock_groups_repo.get_group_income_contributions.return_value = [
+            (admin_id, Decimal("300")),
+            (member_id, Decimal("100")),
+        ]
+
+        result = service.get_my_group(admin_id)
+
+        assert result.admin.income_contribution_percentage == 75.0
+        assert result.members[0].income_contribution_percentage == 25.0
+
+    def test_returns_zero_contribution_when_group_has_no_income(
+        self, service, mock_groups_repo
+    ):
+        admin_id = uuid.uuid4()
+        member_id = uuid.uuid4()
+        group = _make_group(admin_id=admin_id)
+        member_user = _make_user(user_id=member_id, email="member@test.cl")
+        group.members = [
+            _make_group_member(group.admin),
+            _make_group_member(member_user),
+        ]
+        mock_groups_repo.get_group_by_admin.return_value = group
+        mock_groups_repo.get_group_by_id.return_value = group
+        mock_groups_repo.get_group_income_contributions.return_value = []
+
+        result = service.get_my_group(admin_id)
+
+        assert result.admin.income_contribution_percentage == 0.0
+        assert result.members[0].income_contribution_percentage == 0.0
 
     def test_returns_group_for_member(self, service, mock_groups_repo):
         user_id = uuid.uuid4()
