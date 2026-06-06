@@ -136,7 +136,7 @@ class DailyTipsAgent:
         api_key = self._get_nvidia_api_key()
 
         model = Nvidia(
-            id="qwen/qwen3-coder-480b-a35b-instruct",
+            id="nvidia/llama-3.3-nemotron-super-49b-v1",
             api_key=api_key,
         )
         instructions = f"""Eres un experto en finanzas personales para Chile.
@@ -320,7 +320,7 @@ class DailyTipsAgent:
             name="ContextSearchAgent",
             tools=[TavilyTools()],
             model=Nvidia(
-                id="qwen/qwen3-coder-480b-a35b-instruct",
+                id="nvidia/llama-3.3-nemotron-super-49b-v1",
                 api_key=self._get_nvidia_api_key(),
             ),
             instructions="""Tu ÚNICA función es buscar información con web_search.

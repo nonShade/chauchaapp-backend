@@ -224,7 +224,7 @@ class QuizzAgent:
 
     def _create_agent(self) -> Agent:
         api_key = self._get_nvidia_api_key()
-        model = Nvidia(id="qwen/qwen3-coder-480b-a35b-instruct", api_key=api_key)
+        model = Nvidia(id="nvidia/llama-3.3-nemotron-super-49b-v1", api_key=api_key)
         instructions = (
             "Eres un asistente para generar y validar módulos educativos financieros. "
             "Solo puedes usar el contexto provisto. "
@@ -280,7 +280,7 @@ class QuizzAgent:
         search_agent = Agent(
             name="ModuleContextSearchAgent",
             tools=[TavilyTools()],
-            model=Nvidia(id="qwen/qwen3-coder-480b-a35b-instruct", api_key=api_key),
+            model=Nvidia(id="nvidia/llama-3.3-nemotron-super-49b-v1", api_key=api_key),
             instructions=(
                 "Tu unica funcion es buscar informacion con web_search_using_tavily. "
                 "Usa EXACTAMENTE esa herramienta y nombre. "
