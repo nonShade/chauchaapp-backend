@@ -27,6 +27,7 @@ def _mock_notification(notif_id=None, user_id=None):
     n.user_id = user_id or uuid.uuid4()
     n.message = "Test message"
     n.scheduled_date = None
+    n.created_at = datetime(2026, 6, 2, 12, 30)
     n.reference_id = None
     n.reference_type = None
 
@@ -63,6 +64,7 @@ def test_get_my_notifications(client: TestClient, mock_db: MagicMock):
     assert len(data) == 1
     assert data[0]["notification_id"] == str(notif.notification_id)
     assert data[0]["message"] == "Test message"
+    assert data[0]["created_at"] == "2026-06-02T12:30:00"
 
 
 # ---------------------------------------------------------------------------

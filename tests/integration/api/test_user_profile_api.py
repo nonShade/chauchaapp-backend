@@ -159,10 +159,10 @@ class TestGetProfileEndpoint:
         assert "topics" in data
         assert isinstance(data["topics"], list)
 
-    def test_get_profile_without_token_returns_403(self, client):
-        """CP-P05: Request without Authorization header returns 403 (HTTPBearer behaviour)."""
+    def test_get_profile_without_token_returns_401(self, client):
+        """CP-P05: Request without Authorization header returns 401."""
         response = client.get("/v1/users/profile")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_get_profile_invalid_token_returns_401(self, client):
         """CP-P05: Invalid JWT returns 401."""
@@ -382,12 +382,12 @@ class TestUpdateProfileEndpoint:
         )
         assert response.status_code == 422
 
-    def test_update_profile_without_token_returns_403(
+    def test_update_profile_without_token_returns_401(
         self, client, valid_update_payload
     ):
-        """CP-P05: Request without Authorization header returns 403 (HTTPBearer behaviour)."""
+        """CP-P05: Request without Authorization header returns 401."""
         response = client.put("/v1/users/profile", json=valid_update_payload)
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_update_profile_invalid_token_returns_401(
         self, client, valid_update_payload

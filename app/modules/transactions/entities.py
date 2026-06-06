@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -120,6 +120,9 @@ class Transaction(Base, AuditMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("transaction_frequency.transaction_frequency_id"),
         nullable=True,
+    )
+    is_group_transaction: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)

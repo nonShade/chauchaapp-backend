@@ -25,6 +25,7 @@ from app.modules.transactions.dto import (
 from app.modules.transactions.repository import TransactionsRepository
 from app.modules.transactions.service import TransactionsService
 from app.modules.groups.repository import GroupsRepository
+from app.modules.notifications.repository import NotificationsRepository
 from app.modules.users.entities import User
 from app.modules.users.repository import UserRepository
 from app.shared.database import get_db
@@ -38,7 +39,8 @@ def _get_transactions_service(db: Session = Depends(get_db)) -> TransactionsServ
     repository = TransactionsRepository(db)
     user_repo = UserRepository(db)
     groups_repo = GroupsRepository(db)
-    return TransactionsService(repository, user_repo, groups_repo)
+    notifications_repo = NotificationsRepository(db)
+    return TransactionsService(repository, user_repo, groups_repo, notifications_repo)
 
 
 @router.get(

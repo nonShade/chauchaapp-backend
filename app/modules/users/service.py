@@ -6,7 +6,8 @@ Delegates data access to the repository layer.
 Must be independent of web framework (per backend development rules).
 """
 
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import uuid
 
 from app.modules.transactions.entities import Transaction
@@ -19,6 +20,8 @@ from app.modules.users.exceptions import (
     UserNotFoundException,
 )
 from app.modules.users.repository import UserRepository
+
+SANTIAGO_TZ = ZoneInfo("America/Santiago")
 
 
 class UserProfileService:
@@ -140,7 +143,7 @@ class UserProfileService:
                     transaction_category_id=sueldo_category.transaction_category_id,
                     transaction_frequency_id=monthly_frequency.transaction_frequency_id,
                     description=None,
-                    transaction_date=date.today(),
+                    transaction_date=datetime.now(SANTIAGO_TZ).replace(microsecond=0),
                 )
                 self._tx_repo.add_transaction(new_tx)
 

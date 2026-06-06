@@ -4,7 +4,8 @@ Integration tests for the Family Group API endpoints.
 
 import uuid
 from datetime import datetime
-from unittest.mock import MagicMock
+from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -34,6 +35,13 @@ def _mock_group(group_id=None, admin_id=None, name="Mi Grupo"):
     g.admin = admin
     g.members = []
     return g
+
+
+def _mock_group_member(user):
+    member = MagicMock(spec=GroupMember)
+    member.user_id = user.user_id
+    member.user = user
+    return member
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +104,43 @@ def test_create_family_group_empty_name(client: TestClient, mock_db: MagicMock):
 # ---------------------------------------------------------------------------
 # GET /v1/family-group — Get my group
 # ---------------------------------------------------------------------------
+
+
+def test_get_my_group_returns_income_contribution_percentages(
+    client: TestClient, mock_db: MagicMock
+):
+    admin_id = uuid.uuid4()
+    member_id = uuid.uuid4()
+    group_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=admin_id)
+
+    group = _mock_group(group_id=group_id, admin_id=admin_id)
+    member_user = _mock_user(user_id=member_id)
+    member_user.email = "member@test.cl"
+    group.members = [
+        _mock_group_member(group.admin),
+        _mock_group_member(member_user),
+    ]
+
+    with patch(
+        "app.modules.groups.repository.GroupsRepository.get_group_by_admin",
+        return_value=group,
+    ), patch(
+        "app.modules.groups.repository.GroupsRepository.get_group_by_id",
+        return_value=group,
+    ), patch(
+        "app.modules.groups.repository.GroupsRepository.get_group_income_contributions",
+        return_value=[
+            (admin_id, Decimal("300")),
+            (member_id, Decimal("100")),
+        ],
+    ):
+        response = client.get("/v1/family-group")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["admin"]["income_contribution_percentage"] == 75.0
+    assert data["members"][0]["income_contribution_percentage"] == 25.0
 
 
 def test_get_my_group_not_found(client: TestClient, mock_db: MagicMock):
@@ -221,3 +266,53 @@ def test_remove_member_not_admin_returns_403(client: TestClient, mock_db: MagicM
         f"/v1/family-group/member?user_id={uuid.uuid4()}"
     )
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# DELETE /v1/family-group/leave — Leave group
+# ---------------------------------------------------------------------------
+
+
+def test_leave_group_success(client: TestClient, mock_db: MagicMock):
+    user_id = uuid.uuid4()
+    group_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=user_id)
+
+    membership = MagicMock(spec=GroupMember)
+    membership.family_group_id = group_id
+    mock_db.query.return_value.filter.return_value.first.side_effect = [
+        None,
+        membership,
+    ]
+
+    response = client.delete("/v1/family-group/leave")
+
+    assert response.status_code == 200
+    assert response.json()["family_group_id"] == str(group_id)
+
+
+def test_leave_group_without_group_returns_404(client: TestClient, mock_db: MagicMock):
+    user_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=user_id)
+
+    mock_db.query.return_value.filter.return_value.first.side_effect = [
+        None,
+        None,
+    ]
+
+    response = client.delete("/v1/family-group/leave")
+
+    assert response.status_code == 404
+
+
+def test_leave_group_admin_returns_400(client: TestClient, mock_db: MagicMock):
+    user_id = uuid.uuid4()
+    app.dependency_overrides[get_current_user] = lambda: _mock_user(user_id=user_id)
+
+    mock_db.query.return_value.filter.return_value.first.return_value = _mock_group(
+        admin_id=user_id
+    )
+
+    response = client.delete("/v1/family-group/leave")
+
+    assert response.status_code == 400

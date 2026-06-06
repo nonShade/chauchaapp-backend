@@ -3,6 +3,7 @@ Unit tests for NotificationsService.
 """
 
 import uuid
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,6 +34,7 @@ def _make_notification(notif_id=None, user_id=None):
     n.user_id = user_id or uuid.uuid4()
     n.message = "Test notification"
     n.scheduled_date = None
+    n.created_at = datetime(2026, 6, 2, 12, 30)
     n.reference_id = None
     n.reference_type = None
 
@@ -77,6 +79,7 @@ class TestGetMyNotifications:
         assert result[0].notification_type == "group_join_request"
         assert result[0].notification_status == "pending"
         assert result[0].user_id == user_id
+        assert result[0].created_at == notif.created_at
 
 
 class TestDeleteNotification:
