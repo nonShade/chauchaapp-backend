@@ -8,11 +8,9 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from agno.agent import Agent
-from agno.models.google import Gemini
+from agno.models.nvidia import Nvidia
 from agno.tools.tavily import TavilyTools
 import logging
-
-from app.agent._gemini_run import run_with_key_rotation
 
 load_dotenv()
 
@@ -62,13 +60,11 @@ class NewsAnalysisAgentOptimized:
 
     URGENCY_LEVELS = ["bajo", "medio", "alto"]
 
-    def __init__(self, max_parallel_analyses: int = 1):
+    def __init__(self, max_parallel_analyses: int = 3):
         """Inicializa el agente con control de paralelización.
 
         Args:
-            max_parallel_analyses: Número máximo de análisis paralelos (default: 1).
-                Gemini free tier limita a 5 req/min por proyecto; procesar en
-                paralelo agota la cuota y causa 429 en la mayoría de batches.
+            max_parallel_analyses: Número máximo de análisis paralelos (default: 3)
         """
         self.session_id = "news_analysis_session_optimized"
         self.agent = self._create_agent()
@@ -77,22 +73,22 @@ class NewsAnalysisAgentOptimized:
         self._timing_stats = {}
 
     def _get_nvidia_api_key(self) -> str:
-        """Round-robin pick among configured GEMINI_API_KEY* entries."""
-        from app.agent._gemini_keys import next_gemini_api_key
-        return next_gemini_api_key()
+        api_keys = [
+            os.getenv("NVIDIA_API_KEY"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK2"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK3"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK4"),
+        ]
+        for api_key in api_keys:
+            if api_key and api_key.strip():
+                return api_key
+        raise ValueError("No se encontraron claves de API de Nvidia. Configura NVIDIA_API_KEY en tu .env")
 
-    def _create_agent(self, api_key: str | None = None) -> Agent:
+    def _create_agent(self) -> Agent:
         """Crea el agente una sola vez (reutilización)."""
-        api_key = api_key or self._get_nvidia_api_key()
-        model = Gemini(
-            id="gemini-2.5-flash",
-            api_key=api_key,
-            temperature=0.3,
-            retries=3,
-            delay_between_retries=2,
-            exponential_backoff=True,
-            thinking_budget=0,
-        )
+        api_key = self._get_nvidia_api_key()
+        model = Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key)
 
         instructions = f"""
         Eres un analista financiero experto para Chile. Analizarás noticias y
@@ -261,7 +257,7 @@ class NewsAnalysisAgentOptimized:
                 {chr(10).join(prompt_sections)}
                 """
 
-                response = run_with_key_rotation(self._create_agent, prompt_final)
+                response = self.agent.run(prompt_final)
 
                 if response.content is None:
                     raise ValueError("Modelo no devolvió contenido")
@@ -291,7 +287,7 @@ class NewsAnalysisAgentOptimized:
         user_profile: dict,
         db_session
     ) -> list[dict]:
-        """Analiza noticias en secuencia (con delay entre batches) y batch insert a BD."""
+        """Analiza noticias CON PARALELIZACIÓN y batch insert a BD."""
         from app.modules.news.entities import News, NewsTag, NewsTagMap, PersonalizedAnalysisNews
         from sqlalchemy import insert
 
@@ -311,16 +307,12 @@ class NewsAnalysisAgentOptimized:
             task = self._analyze_batch_with_timeout(batch_news, user_context, batch_idx // 3 + 1)
             batch_tasks.append((batch_idx, batch_news, task))
 
-        logger.info(f" Esperando {len(batch_tasks)} análisis (secuencial, con delay)...")
+        logger.info(f" Esperando {len(batch_tasks)} análisis...")
         batch_results = []
-        for i, (batch_idx, batch_news, task) in enumerate(batch_tasks):
+        for batch_idx, batch_news, task in batch_tasks:
             result = await task
             if result:
                 batch_results.append((batch_news, result))
-            if i < len(batch_tasks) - 1:
-                delay = 15
-                logger.info(f"   Pausa {delay}s entre batches para respetar cuota Gemini...")
-                await asyncio.sleep(delay)
 
         logger.info(" Preparando bulk inserts...")
 
@@ -614,10 +606,9 @@ class NewsAnalysisAgentOptimized:
 
             logger.info(f" Buscando noticias chilenas: {search_query}")
 
-            response = run_with_key_rotation(
-                self._create_agent,
+            response = self.agent.run(
                 f"""Usa web_search_using_tavily para buscar: {search_query}.
-                Devuelve solo resultados con URLs en texto plano.""",
+                Devuelve solo resultados con URLs en texto plano."""
             )
 
             if not response or not response.messages:

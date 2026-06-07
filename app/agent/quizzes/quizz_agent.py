@@ -8,13 +8,10 @@ from datetime import datetime
 from typing import List, Literal, Optional
 
 from agno.agent import Agent
-from agno.models.google import Gemini
+from agno.models.nvidia import Nvidia
 from agno.tools.tavily import TavilyTools
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, validator
-
-from app.agent._gemini_keys import next_gemini_api_key
-from app.agent._gemini_run import run_with_key_rotation
 
 load_dotenv()
 
@@ -204,20 +201,30 @@ class QuizzAgent:
         self._default_modules_cache: list[Module] | None = None
 
     def _get_nvidia_api_key(self) -> str:
-        """Round-robin pick among configured GEMINI_API_KEY* entries."""
-        return next_gemini_api_key()
+        """
+        Obtiene la clave de API de Nvidia con manejo de fallback.
+        Intenta usar las claves en orden: NVIDIA_API_KEY, NVIDIA_API_KEY_FALLBACK, etc.
+        """
+        api_keys = [
+            os.getenv("NVIDIA_API_KEY"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK2"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK3"),
+            os.getenv("NVIDIA_API_KEY_FALLBACK4"),
+        ]
 
-    def _create_agent(self, api_key: str | None = None) -> Agent:
-        api_key = api_key or self._get_nvidia_api_key()
-        model = Gemini(
-            id="gemini-2.5-flash",
-            api_key=api_key,
-            temperature=0.3,
-            retries=3,
-            delay_between_retries=2,
-            exponential_backoff=True,
-            thinking_budget=0,
+        for api_key in api_keys:
+            if api_key and api_key.strip():
+                return api_key
+
+        raise ValueError(
+            "No NVIDIA API keys found. Please configure NVIDIA_API_KEY "
+            "or its fallback variants in your .env file."
         )
+
+    def _create_agent(self) -> Agent:
+        api_key = self._get_nvidia_api_key()
+        model = Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key)
         instructions = (
             "Eres un asistente para generar y validar módulos educativos financieros. "
             "Solo puedes usar el contexto provisto. "
@@ -269,36 +276,27 @@ class QuizzAgent:
         return parsed
 
     def _get_module_context(self, topic: str, country: str = "Chile") -> str:
-        def _create_search_agent(api_key: str) -> Agent:
-            return Agent(
-                name="ModuleContextSearchAgent",
-                tools=[TavilyTools()],
-                model=Gemini(
-                    id="gemini-2.5-flash",
-                    api_key=api_key,
-                    temperature=0.2,
-                    retries=3,
-                    delay_between_retries=2,
-                    exponential_backoff=True,
-                    thinking_budget=0,
-                ),
-                instructions=(
-                    "Tu unica funcion es buscar informacion con web_search_using_tavily. "
-                    "Usa EXACTAMENTE esa herramienta y nombre. "
-                    "No respondas con memoria previa. "
-                    "Si no encuentras un dato, indicalo como 'dato no encontrado'."
-                ),
-            )
+        api_key = self._get_nvidia_api_key()
+        search_agent = Agent(
+            name="ModuleContextSearchAgent",
+            tools=[TavilyTools()],
+            model=Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key),
+            instructions=(
+                "Tu unica funcion es buscar informacion con web_search_using_tavily. "
+                "Usa EXACTAMENTE esa herramienta y nombre. "
+                "No respondas con memoria previa. "
+                "Si no encuentras un dato, indicalo como 'dato no encontrado'."
+            ),
+        )
 
-        response = run_with_key_rotation(
-            _create_search_agent,
+        response = search_agent.run(
             f"""Usa web_search_using_tavily para buscar AHORA mismo fuentes confiables sobre:
             1. conceptos clave de {topic} en finanzas personales
             2. definiciones claras y actuales de terminos esenciales
             3. buenas practicas y riesgos frecuentes
 
             Limita la informacion al contexto de {country}. Si algun dato numerico
-            no esta disponible o no es verificable, marca 'dato no encontrado'.""",
+            no esta disponible o no es verificable, marca 'dato no encontrado'."""
         )
         context = response.content if response.content else ""
         return context[:2000]
@@ -502,7 +500,7 @@ class QuizzAgent:
 
         last_error: Exception | None = None
         for _attempt in range(3):
-            response = run_with_key_rotation(self._create_agent, prompt)
+            response = self.agent.run(prompt, output_schema=Module)
             content = response.content
             if content is None:
                 last_error = RuntimeError("Agent returned no content")
@@ -802,7 +800,7 @@ class QuizzAgent:
             "La explicacion debe dar feedback practico y conectar con una seccion o tip. "
             "Incluye id, title, questionsCount, passingScore y questions. Responde SOLO con JSON."
         )
-        response = run_with_key_rotation(self._create_agent, prompt)
+        response = self.agent.run(prompt)
         content = response.content
         if content is None:
             raise RuntimeError("Agent returned no content")
