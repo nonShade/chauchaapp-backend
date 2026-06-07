@@ -55,7 +55,7 @@ class FinancialPlanningAgent:
 
     def _create_agent(self) -> Agent:
         api_key = self._get_nvidia_api_key()
-        model = Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key)
+        model = Nvidia(id="nvidia/llama-3.3-nemotron-super-49b-v1", api_key=api_key)
         instructions = """
 Eres un experto en planificacion financiera para Chile.
 Reglas criticas:
