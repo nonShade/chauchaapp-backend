@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from agno.agent import Agent
 from agno.models.nvidia import Nvidia
-from agno.tools.tavily import TavilyTools
 import logging
 
 load_dotenv()
@@ -68,7 +67,6 @@ class NewsAnalysisAgentOptimized:
         """
         self.session_id = "news_analysis_session_optimized"
         self.analysis_agent = self._create_agent()
-        self.search_agent = self._create_search_agent()
         self.analysis_semaphore = asyncio.Semaphore(max_parallel_analyses)
         self._analysis_cache = {}
         self._timing_stats = {}
@@ -141,24 +139,6 @@ class NewsAnalysisAgentOptimized:
             markdown=True,
         )
         return agent
-
-    def _create_search_agent(self) -> Agent:
-        """Crea agente solo para busqueda con Tavily."""
-        api_key = self._get_nvidia_api_key()
-        model = Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key)
-
-        return Agent(
-            name="NewsSearchAgent",
-            tools=[TavilyTools()],
-            model=model,
-            instructions=(
-                "Tu unica funcion es usar web_search_using_tavily para buscar URLs. "
-                "No inventes funciones ni llames tools que no existan."
-            ),
-            description="Busca noticias usando Tavily",
-            session_id=f"{self.session_id}_search",
-            markdown=False,
-        )
 
     def _track_timing(self, operation: str, elapsed: float):
         """Registra tiempos para debug."""
@@ -609,7 +589,7 @@ class NewsAnalysisAgentOptimized:
             return []
 
     async def search_chilean_news(self, user_categories: list[str], keywords: str = "") -> list[dict]:
-        """Busca noticias en dominios .cl vía agent.
+        """Busca noticias en dominios .cl usando Tavily directo.
 
         Args:
             user_categories: Categorías de interés del usuario
@@ -620,7 +600,7 @@ class NewsAnalysisAgentOptimized:
         """
         try:
             import os
-            import re
+            from tavily import TavilyClient
 
             tavily_key = os.getenv("TAVILY_API_KEY")
             if not tavily_key:
@@ -632,35 +612,29 @@ class NewsAnalysisAgentOptimized:
                 search_terms.insert(0, keywords)
 
             search_query = " OR ".join(search_terms) + " site:*.cl economics news"
-
             logger.info(f" Buscando noticias chilenas: {search_query}")
 
-            response = self.search_agent.run(
-                f"""Usa web_search_using_tavily para buscar: {search_query}.
-                Devuelve solo resultados con URLs en texto plano."""
+            client = TavilyClient(api_key=tavily_key)
+            result = client.search(
+                query=search_query,
+                topic="news",
+                max_results=5,
+                include_domains=["df.cl", "latercera.com", "emol.com", "biobiochile.cl", "cooperativa.cl", "cnnchile.com"],
             )
 
-            if not response or not response.messages:
-                logger.info("No results from Chilean search")
-                return []
-
             formatted = []
-            try:
-                response_text = str(response.messages[-1].content if response.messages else "")
-                urls = re.findall(r'https?://[^\s"<>\']+', response_text)
-
-                for url in urls[:5]:
-                    if ".cl" in url:
-                        formatted.append({
-                            "title": url.split("/")[-1][:50],
-                            "summary": f"Noticia desde {url}",
-                            "content_text": f"Fuente: {url}",
-                            "source_url": url,
-                            "published_at": datetime.now(),
-                            "link": url,
-                        })
-            except Exception as parse_error:
-                logger.warning(f"Could not parse search results: {parse_error}")
+            for item in result.get("results", []):
+                url = item.get("url", "")
+                if not url:
+                    continue
+                formatted.append({
+                    "title": item.get("title") or url.split("/")[-1][:80],
+                    "summary": item.get("content", "")[:500],
+                    "content_text": item.get("content", ""),
+                    "source_url": url,
+                    "published_at": datetime.now(),
+                    "link": url,
+                })
 
             logger.info(f" Encontradas {len(formatted)} noticias chilenas")
             return formatted
