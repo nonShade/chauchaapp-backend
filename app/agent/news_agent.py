@@ -266,6 +266,10 @@ class NewsAnalysisAgentOptimized:
                     raw_content = response.content.strip()
                     if raw_content.startswith("```json"):
                         raw_content = raw_content.replace("```json", "").replace("```", "").strip()
+                    first_brace = raw_content.find("{")
+                    last_brace = raw_content.rfind("}")
+                    if first_brace != -1 and last_brace != -1:
+                        raw_content = raw_content[first_brace:last_brace + 1]
                     content_dict = json_module.loads(raw_content)
                 else:
                     content_dict = response.content.model_dump()
