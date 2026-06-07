@@ -62,11 +62,13 @@ class NewsAnalysisAgentOptimized:
 
     URGENCY_LEVELS = ["bajo", "medio", "alto"]
 
-    def __init__(self, max_parallel_analyses: int = 3):
+    def __init__(self, max_parallel_analyses: int = 1):
         """Inicializa el agente con control de paralelización.
 
         Args:
-            max_parallel_analyses: Número máximo de análisis paralelos (default: 3)
+            max_parallel_analyses: Número máximo de análisis paralelos (default: 1).
+                Gemini free tier limita a 5 req/min por proyecto; procesar en
+                paralelo agota la cuota y causa 429 en la mayoría de batches.
         """
         self.session_id = "news_analysis_session_optimized"
         self.agent = self._create_agent()
@@ -289,7 +291,7 @@ class NewsAnalysisAgentOptimized:
         user_profile: dict,
         db_session
     ) -> list[dict]:
-        """Analiza noticias CON PARALELIZACIÓN y batch insert a BD."""
+        """Analiza noticias en secuencia (con delay entre batches) y batch insert a BD."""
         from app.modules.news.entities import News, NewsTag, NewsTagMap, PersonalizedAnalysisNews
         from sqlalchemy import insert
 
@@ -309,12 +311,16 @@ class NewsAnalysisAgentOptimized:
             task = self._analyze_batch_with_timeout(batch_news, user_context, batch_idx // 3 + 1)
             batch_tasks.append((batch_idx, batch_news, task))
 
-        logger.info(f" Esperando {len(batch_tasks)} análisis...")
+        logger.info(f" Esperando {len(batch_tasks)} análisis (secuencial, con delay)...")
         batch_results = []
-        for batch_idx, batch_news, task in batch_tasks:
+        for i, (batch_idx, batch_news, task) in enumerate(batch_tasks):
             result = await task
             if result:
                 batch_results.append((batch_news, result))
+            if i < len(batch_tasks) - 1:
+                delay = 15
+                logger.info(f"   Pausa {delay}s entre batches para respetar cuota Gemini...")
+                await asyncio.sleep(delay)
 
         logger.info(" Preparando bulk inserts...")
 
