@@ -270,7 +270,7 @@ class NewsAnalysisAgentOptimized:
                     last_brace = raw_content.rfind("}")
                     if first_brace != -1 and last_brace != -1:
                         raw_content = raw_content[first_brace:last_brace + 1]
-                    content_dict = json_module.loads(raw_content)
+                    content_dict = json_module.loads(raw_content, strict=False)
                 else:
                     content_dict = response.content.model_dump()
 
