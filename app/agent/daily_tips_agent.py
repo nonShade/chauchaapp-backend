@@ -3,8 +3,11 @@ from typing import Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ConfigDict, ValidationError
 from agno.agent import Agent
-from agno.models.nvidia import Nvidia
+from agno.models.google import Gemini
 from agno.tools.tavily import TavilyTools
+
+from app.agent._gemini_keys import next_gemini_api_key
+from app.agent._gemini_run import run_with_key_rotation
 
 load_dotenv()
 
@@ -57,7 +60,7 @@ class DailyTipBatch(BaseModel):
 
 
 class DailyTipsAgent:
-    """Agente para generar tips financieros diarios usando modelos de Nvidia.
+    """Agente para generar tips financieros diarios usando Gemini Flash.
 
     Utiliza agno con Structured Output (Pydantic models) para garantizar
     respuestas válidas y tipadas.
@@ -95,33 +98,15 @@ class DailyTipsAgent:
     """
 
     def __init__(self):
-        """Inicializa el agente con las claves de API de Nvidia con fallback."""
+        """Inicializa el agente con la clave de API de Gemini."""
         self.agent = self._create_agent()
         self.session_id = "daily_tips_session"
 
     def _get_nvidia_api_key(self) -> str:
-        """
-        Obtiene la clave de API de Nvidia con manejo de fallback.
-        Intenta usar las claves en orden: NVIDIA_API_KEY, NVIDIA_API_KEY_FALLBACK, etc.
-        """
-        api_keys = [
-            os.getenv("NVIDIA_API_KEY"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK2"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK3"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK4"),
-        ]
+        """Round-robin pick among configured GEMINI_API_KEY* entries."""
+        return next_gemini_api_key()
 
-        for api_key in api_keys:
-            if api_key and api_key.strip():
-                return api_key
-
-        raise ValueError(
-            "No NVIDIA API keys found. Please configure NVIDIA_API_KEY "
-            "or its fallback variants in your .env file."
-        )
-
-    def _create_agent(self) -> Agent:
+    def _create_agent(self, api_key: str | None = None) -> Agent:
         """
         Crea y configura el agente diario de tips financieros.
 
@@ -131,13 +116,18 @@ class DailyTipsAgent:
         - Session tracking para contexto de conversación
 
         Returns:
-            Agent: Agente configurado con el modelo de Nvidia
+            Agent: Agente configurado con Gemini Flash
         """
-        api_key = self._get_nvidia_api_key()
+        api_key = api_key or self._get_nvidia_api_key()
 
-        model = Nvidia(
-            id="nvidia/llama-3.3-nemotron-super-49b-v1",
+        model = Gemini(
+            id="gemini-2.5-flash",
             api_key=api_key,
+            temperature=0.3,
+            retries=3,
+            delay_between_retries=2,
+            exponential_backoff=True,
+            thinking_budget=0,
         )
         instructions = f"""Eres un experto en finanzas personales para Chile.
             Categorías permitidas: {', '.join(self.ALLOWED_CATEGORIES)}
@@ -196,19 +186,25 @@ class DailyTipsAgent:
         - Responde SOLO con JSON, sin texto adicional"""
 
         try:
-            response = self.agent.run(prompt, output_schema=DailyTip)
+            response = run_with_key_rotation(self._create_agent, prompt)
             if response.content is None:
                 raise ValueError("El modelo no devolvió un contenido válido")
-            return response.content
+            if isinstance(response.content, DailyTip):
+                return response.content
+            import json
+            content_dict = json.loads(response.content) if isinstance(response.content, str) else response.content.model_dump()
+            return DailyTip(**content_dict)
         except Exception as e:
             raise Exception(f"Error al generar tip diario: {str(e)}")
 
     def generate_weekly_tips_batch(self) -> list[DailyTipWeekly]:
         """
         Genera 7 tips financieros en UNA SOLA llamada a la IA.
-        Optimizado para usar modelos gratuitos de Nvidia sin limites de rate.
+        Optimizado para usar Gemini 2.5 Flash con thinking_budget=0.
 
-        Usa Structured Output (output_schema) para validación automática.
+        Usa prompt JSON-only + parseo manual (Pydantic valida post-respuesta).
+        No se usa output_schema nativo: Gemini Developer API rechaza
+        additionalProperties:false que Pydantic genera.
 
         Returns:
             list[DailyTip]: Lista de exactamente 7 tips validados
@@ -266,7 +262,7 @@ class DailyTipsAgent:
                     )
 
                 import json
-                response = self.agent.run(attempt_prompt, output_schema=DailyTipBatch)
+                response = run_with_key_rotation(self._create_agent, attempt_prompt)
 
                 if response.content is None:
                     raise ValueError("El modelo no devolvió un contenido válido")
@@ -316,20 +312,27 @@ class DailyTipsAgent:
             return None
 
     def _get_chile_context(self) -> str:
-        search_agent = Agent(
-            name="ContextSearchAgent",
-            tools=[TavilyTools()],
-            model=Nvidia(
-                id="nvidia/llama-3.3-nemotron-super-49b-v1",
-                api_key=self._get_nvidia_api_key(),
-            ),
-            instructions="""Tu ÚNICA función es buscar información con web_search.
-            NUNCA respondas con datos de tu memoria de entrenamiento.
-            SIEMPRE usa la herramienta web_search antes de responder.
-            Si no usas la herramienta, tu respuesta es inválida.""",
-        )
+        def _create_search_agent(api_key: str) -> Agent:
+            return Agent(
+                name="ContextSearchAgent",
+                tools=[TavilyTools()],
+                model=Gemini(
+                    id="gemini-2.5-flash",
+                    api_key=api_key,
+                    temperature=0.2,
+                    retries=3,
+                    delay_between_retries=2,
+                    exponential_backoff=True,
+                    thinking_budget=0,
+                ),
+                instructions="""Tu ÚNICA función es buscar información con web_search.
+                NUNCA respondas con datos de tu memoria de entrenamiento.
+                SIEMPRE usa la herramienta web_search antes de responder.
+                Si no usas la herramienta, tu respuesta es inválida.""",
+            )
 
-        response = search_agent.run(
+        response = run_with_key_rotation(
+            _create_search_agent,
             """Usa web_search para buscar AHORA mismo (no uses tu memoria):
             1. "sueldo mínimo Chile 2025 - 2026 valor actual"
             2. "valor UF Chile hoy"
@@ -338,7 +341,7 @@ class DailyTipsAgent:
 
             Busca cada término por separado y resume los resultados con los
             números EXACTOS que encontraste. Si no encuentras algún dato,
-            escribe explícitamente "dato no encontrado" para esa categoría."""
+            escribe explícitamente "dato no encontrado" para esa categoría.""",
         )
         return response.content if response.content else ""
 

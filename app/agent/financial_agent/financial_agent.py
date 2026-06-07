@@ -5,8 +5,11 @@ import json
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from agno.agent import Agent
-from agno.models.nvidia import Nvidia
+from agno.models.google import Gemini
 from agno.tools.tavily import TavilyTools
+
+from app.agent._gemini_keys import next_gemini_api_key
+from app.agent._gemini_run import run_with_key_rotation
 
 load_dotenv()
 
@@ -39,23 +42,20 @@ class FinancialPlanningAgent:
         self.agent = self._create_agent()
 
     def _get_nvidia_api_key(self) -> str:
-        api_keys = [
-            os.getenv("NVIDIA_API_KEY"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK2"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK3"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK4"),
-        ]
-        for api_key in api_keys:
-            if api_key and api_key.strip():
-                return api_key
-        raise ValueError(
-            "No NVIDIA API keys found. Please configure NVIDIA_API_KEY or fallbacks."
-        )
+        """Round-robin pick among configured GEMINI_API_KEY* entries."""
+        return next_gemini_api_key()
 
-    def _create_agent(self) -> Agent:
-        api_key = self._get_nvidia_api_key()
-        model = Nvidia(id="nvidia/llama-3.3-nemotron-super-49b-v1", api_key=api_key)
+    def _create_agent(self, api_key: str | None = None) -> Agent:
+        api_key = api_key or self._get_nvidia_api_key()
+        model = Gemini(
+            id="gemini-2.5-flash",
+            api_key=api_key,
+            temperature=0.3,
+            retries=3,
+            delay_between_retries=2,
+            exponential_backoff=True,
+            thinking_budget=0,
+        )
         instructions = """
 Eres un experto en planificacion financiera para Chile.
 Reglas criticas:
@@ -84,14 +84,14 @@ Reglas criticas:
 
     def _generate_financial_planning_payload(self) -> FinancialPlanningTipsPayload:
         prompt = self._build_prompt()
-        response = self.agent.run(prompt)
+        response = run_with_key_rotation(self._create_agent, prompt)
         payload = self._parse_response_payload(response)
 
         if payload.financialPlanningTips:
             return payload
 
         retry_prompt = self._build_prompt(retry=True)
-        response = self.agent.run(retry_prompt)
+        response = run_with_key_rotation(self._create_agent, retry_prompt)
         payload = self._parse_response_payload(response)
 
         if not payload.financialPlanningTips:

@@ -17,6 +17,7 @@ email-validator
 python-multipart
 pytest-mock
 openai>=2.0.0
+google-genai
 feedparser
 ddgs
 tzdata

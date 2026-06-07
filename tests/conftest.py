@@ -14,6 +14,7 @@ os.environ["JWT_EXPIRE_MINUTES"] = "30"
 os.environ["DATABASE_URL"] = "sqlite:///test.db"
 # Prevent DailyTipsAgent from raising ValueError on import (no real API call is made in tests)
 os.environ.setdefault("NVIDIA_API_KEY", "test_dummy_key_for_tests")
+os.environ.setdefault("GEMINI_API_KEY", "test_dummy_gemini_key_for_tests")
 os.environ.setdefault("TAVILY_API_KEY", "test_dummy_tavily_key_for_tests")
 
 import uuid

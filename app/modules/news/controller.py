@@ -89,7 +89,7 @@ def get_news_topics(service: NewsService = Depends(_get_news_service)):
        - Tipo de ingreso, nivel de deuda, estabilidad
        - Topics y top categories de interés
     4. Usa Tavily para búsqueda web de datos económicos actualizados
-    5. Analiza con IA (modelo Nvidia) el impacto personalizado
+    5. Analiza con IA (Gemini Flash) el impacto personalizado
     6. Guarda TODO en base de datos:
        - Noticias
        - Tags/categorías

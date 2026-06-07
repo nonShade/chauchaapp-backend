@@ -8,9 +8,11 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from agno.agent import Agent
-from agno.models.nvidia import Nvidia
+from agno.models.google import Gemini
 from agno.tools.tavily import TavilyTools
 import logging
+
+from app.agent._gemini_run import run_with_key_rotation
 
 load_dotenv()
 
@@ -73,22 +75,22 @@ class NewsAnalysisAgentOptimized:
         self._timing_stats = {}
 
     def _get_nvidia_api_key(self) -> str:
-        api_keys = [
-            os.getenv("NVIDIA_API_KEY"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK2"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK3"),
-            os.getenv("NVIDIA_API_KEY_FALLBACK4"),
-        ]
-        for api_key in api_keys:
-            if api_key and api_key.strip():
-                return api_key
-        raise ValueError("No se encontraron claves de API de Nvidia. Configura NVIDIA_API_KEY en tu .env")
+        """Round-robin pick among configured GEMINI_API_KEY* entries."""
+        from app.agent._gemini_keys import next_gemini_api_key
+        return next_gemini_api_key()
 
-    def _create_agent(self) -> Agent:
+    def _create_agent(self, api_key: str | None = None) -> Agent:
         """Crea el agente una sola vez (reutilización)."""
-        api_key = self._get_nvidia_api_key()
-        model = Nvidia(id="nvidia/llama-3.3-nemotron-super-49b-v1", api_key=api_key)
+        api_key = api_key or self._get_nvidia_api_key()
+        model = Gemini(
+            id="gemini-2.5-flash",
+            api_key=api_key,
+            temperature=0.3,
+            retries=3,
+            delay_between_retries=2,
+            exponential_backoff=True,
+            thinking_budget=0,
+        )
 
         instructions = f"""
         Eres un analista financiero experto para Chile. Analizarás noticias y
@@ -257,7 +259,7 @@ class NewsAnalysisAgentOptimized:
                 {chr(10).join(prompt_sections)}
                 """
 
-                response = self.agent.run(prompt_final)
+                response = run_with_key_rotation(self._create_agent, prompt_final)
 
                 if response.content is None:
                     raise ValueError("Modelo no devolvió contenido")
@@ -606,9 +608,10 @@ class NewsAnalysisAgentOptimized:
 
             logger.info(f" Buscando noticias chilenas: {search_query}")
 
-            response = self.agent.run(
+            response = run_with_key_rotation(
+                self._create_agent,
                 f"""Usa web_search_using_tavily para buscar: {search_query}.
-                Devuelve solo resultados con URLs en texto plano."""
+                Devuelve solo resultados con URLs en texto plano.""",
             )
 
             if not response or not response.messages:
