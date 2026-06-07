@@ -67,7 +67,8 @@ class NewsAnalysisAgentOptimized:
             max_parallel_analyses: Número máximo de análisis paralelos (default: 3)
         """
         self.session_id = "news_analysis_session_optimized"
-        self.agent = self._create_agent()
+        self.analysis_agent = self._create_agent()
+        self.search_agent = self._create_search_agent()
         self.analysis_semaphore = asyncio.Semaphore(max_parallel_analyses)
         self._analysis_cache = {}
         self._timing_stats = {}
@@ -86,7 +87,7 @@ class NewsAnalysisAgentOptimized:
         raise ValueError("No se encontraron claves de API de Nvidia. Configura NVIDIA_API_KEY en tu .env")
 
     def _create_agent(self) -> Agent:
-        """Crea el agente una sola vez (reutilización)."""
+        """Crea agente de analisis (sin tools)."""
         api_key = self._get_nvidia_api_key()
         model = Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key)
 
@@ -133,7 +134,6 @@ class NewsAnalysisAgentOptimized:
 
         agent = Agent(
             name="NewsAnalysisAgent",
-            tools=[TavilyTools()],
             model=model,
             instructions=instructions,
             description="Analiza noticias RSS con perfil financiero (OPTIMIZADO)",
@@ -141,6 +141,24 @@ class NewsAnalysisAgentOptimized:
             markdown=True,
         )
         return agent
+
+    def _create_search_agent(self) -> Agent:
+        """Crea agente solo para busqueda con Tavily."""
+        api_key = self._get_nvidia_api_key()
+        model = Nvidia(id="meta/llama-3.1-8b-instruct", api_key=api_key)
+
+        return Agent(
+            name="NewsSearchAgent",
+            tools=[TavilyTools()],
+            model=model,
+            instructions=(
+                "Tu unica funcion es usar web_search_using_tavily para buscar URLs. "
+                "No inventes funciones ni llames tools que no existan."
+            ),
+            description="Busca noticias usando Tavily",
+            session_id=f"{self.session_id}_search",
+            markdown=False,
+        )
 
     def _track_timing(self, operation: str, elapsed: float):
         """Registra tiempos para debug."""
@@ -257,7 +275,7 @@ class NewsAnalysisAgentOptimized:
                 {chr(10).join(prompt_sections)}
                 """
 
-                response = self.agent.run(prompt_final)
+                response = self.analysis_agent.run(prompt_final)
 
                 if response.content is None:
                     raise ValueError("Modelo no devolvió contenido")
@@ -606,7 +624,7 @@ class NewsAnalysisAgentOptimized:
 
             logger.info(f" Buscando noticias chilenas: {search_query}")
 
-            response = self.agent.run(
+            response = self.search_agent.run(
                 f"""Usa web_search_using_tavily para buscar: {search_query}.
                 Devuelve solo resultados con URLs en texto plano."""
             )
