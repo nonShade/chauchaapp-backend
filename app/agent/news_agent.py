@@ -372,7 +372,7 @@ class NewsAnalysisAgentOptimized:
                     if analysis.nivel_urgencia not in self.URGENCY_LEVELS:
                         analysis.nivel_urgencia = "bajo"
 
-                    url_original = analysis.fuente_url or news_item.get("source_url") or ""
+                    url_original = analysis.fuente_url or news_item.get("source_url") or news_item.get("link") or ""
                     url_truncada = url_original[:250] if len(url_original) > 250 else url_original
 
                     if url_truncada not in existing_news_urls:
@@ -473,7 +473,7 @@ class NewsAnalysisAgentOptimized:
         analyses_bulk = []
         for batch_news, analyses in batch_results:
             for news_item, analysis_dict in zip(batch_news, analyses):
-                url_truncada = (analysis_dict.get("fuente_url") or news_item.get("source_url") or "")[:250]
+                url_truncada = (analysis_dict.get("fuente_url") or news_item.get("source_url") or news_item.get("link") or "")[:250]
 
                 if url_truncada in news_url_to_id:
                     news_id = news_url_to_id[url_truncada]
@@ -581,13 +581,24 @@ class NewsAnalysisAgentOptimized:
 
                 formatted = []
                 for item in news_items:
+                    resolved_url = item.get("source_url") or item.get("fuente_url") or item.get("link", "")
+                    raw_published = item.get("published_at") or item.get("published")
+                    resolved_published = raw_published
+
+                    if isinstance(raw_published, str):
+                        iso_candidate = raw_published.replace("Z", "+00:00")
+                        try:
+                            resolved_published = datetime.fromisoformat(iso_candidate)
+                        except ValueError:
+                            resolved_published = None
+
                     formatted.append({
                         "title": item.get("title") or item.get("titulo", "Sin título"),
                         "summary": item.get("summary") or item.get("resumen", ""),
                         "content_text": item.get("content_text", ""),
-                        "source_url": item.get("source_url") or item.get("fuente_url", ""),
-                        "published_at": item.get("published_at"),
-                        "link": item.get("source_url") or item.get("fuente_url", ""),
+                        "source_url": resolved_url,
+                        "published_at": resolved_published,
+                        "link": resolved_url,
                     })
 
                 logger.info(f" Obtenidas {len(formatted)} noticias del endpoint interno")
