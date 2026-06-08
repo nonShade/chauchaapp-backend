@@ -109,9 +109,31 @@ class Question(BaseModel):
         opts = values.get("options")
         if qtype in ("multiple_choice", "single_choice"):
             if v is None:
-                raise ValueError("choice questions require a correctAnswer index")
-            if not isinstance(v, int) or v < 0 or (opts and v >= len(opts)):
-                raise ValueError("correctAnswer must be a valid index for options")
+                return 0
+            if isinstance(v, list):
+                v = v[0] if v else 0
+            if isinstance(v, str):
+                lower = v.strip().lower()
+                if lower in ("verdadero", "true"):
+                    v = 0
+                elif lower in ("falso", "false"):
+                    v = 1
+                elif opts:
+                    try:
+                        v = opts.index(v)
+                    except ValueError:
+                        for i, opt in enumerate(opts):
+                            if lower in str(opt).strip().lower():
+                                v = i
+                                break
+                        else:
+                            v = 0
+                else:
+                    v = 0
+            if not isinstance(v, int):
+                v = 0
+            if opts:
+                v = max(0, min(v, len(opts) - 1))
         return v
 
 
@@ -377,6 +399,8 @@ class QuizzAgent:
             if qtype == "true_false" and not options:
                 options = ["Verdadero", "Falso"]
             correct_answer = question.get("correctAnswer")
+            if isinstance(correct_answer, list):
+                correct_answer = correct_answer[0] if correct_answer else 0
             if isinstance(correct_answer, str) and options:
                 normalized_answer = correct_answer.strip().lower()
                 if normalized_answer in ("verdadero", "true"):
@@ -387,10 +411,17 @@ class QuizzAgent:
                     try:
                         correct_answer = options.index(correct_answer)
                     except ValueError:
-                        correct_answer = None
+                        for i, opt in enumerate(options):
+                            if normalized_answer in str(opt).strip().lower():
+                                correct_answer = i
+                                break
+                        else:
+                            correct_answer = 0
+            if isinstance(correct_answer, int) and options:
+                correct_answer = max(0, min(correct_answer, len(options) - 1))
 
             if qtype in ("multiple_choice", "single_choice", "true_false"):
-                if correct_answer is None:
+                if correct_answer is None or not isinstance(correct_answer, int):
                     correct_answer = 0
             normalized_questions.append(
                 {
@@ -500,7 +531,7 @@ class QuizzAgent:
 
         last_error: Exception | None = None
         for _attempt in range(3):
-            response = self.agent.run(prompt, output_schema=Module)
+            response = self.agent.run(prompt)
             content = response.content
             if content is None:
                 last_error = RuntimeError("Agent returned no content")

@@ -195,7 +195,17 @@ class EducationService:
     def _deserialize_module(self, record) -> Module:
         if not record.content:
             raise ValueError("Educational module content is empty")
-        return Module.parse_raw(record.content)
+        import json
+        data = json.loads(record.content)
+        if "quiz" in data and data["quiz"] and "questions" in data["quiz"]:
+            for q in data["quiz"].get("questions", []):
+                opts = q.get("options") or []
+                q["options"] = opts
+                q["correctAnswer"] = self._repository._sanitize_correct_answer(
+                    q.get("correctAnswer"), opts
+                )
+            data["quiz"]["questionsCount"] = len(data["quiz"].get("questions", []))
+        return Module(**data)
 
     def _require_module(self, module_id: str) -> Module:
         module = self.get_module_by_id(module_id)
@@ -277,7 +287,7 @@ class EducationService:
                         "id": question.id,
                         "type": question.type,
                         "question": question.question,
-                        "options": question.options,
+                        "options": question.options or [],
                         "explanation": question.explanation,
                         "correctAnswer": question.correctAnswer,
                     }
