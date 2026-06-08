@@ -389,14 +389,15 @@ class QuizzAgent:
                 "multiple_choice",
                 "single_choice",
                 "true_false",
-                "fill_blank",
             ):
                 qtype = "single_choice"
             qtext = question.get("question") or question.get("title") or f"Pregunta {index}"
             options = question.get("options")
-            if qtype in ("multiple_choice", "single_choice") and not options:
+            if not isinstance(options, list):
+                options = []
+            if qtype in ("multiple_choice", "single_choice") and len(options) < 2:
                 options = ["Opcion A", "Opcion B"]
-            if qtype == "true_false" and not options:
+            if qtype == "true_false" and len(options) < 2:
                 options = ["Verdadero", "Falso"]
             correct_answer = question.get("correctAnswer")
             if isinstance(correct_answer, list):
@@ -423,6 +424,10 @@ class QuizzAgent:
             if qtype in ("multiple_choice", "single_choice", "true_false"):
                 if correct_answer is None or not isinstance(correct_answer, int):
                     correct_answer = 0
+                correct_answer = max(0, min(correct_answer, len(options) - 1))
+            if not options:
+                options = ["Opcion A", "Opcion B"]
+                correct_answer = 0
             normalized_questions.append(
                 {
                     "id": question.get("id") or f"q{index}",
@@ -514,6 +519,7 @@ class QuizzAgent:
         - Prohibido: "que es", "quien regula", "cual es", "que significa", listas de conceptos.
         - Opciones deben ser acciones concretas, no definiciones.
         - Evita true_false salvo que el escenario requiera verificar una accion.
+        - Prohibido: preguntas tipo fill_blank (rellenar espacio en blanco).
         - La explicacion debe dar feedback practico y conectar con la seccion del modulo.
         - Responde SOLO con JSON valido para el esquema Module.
         - Usa comillas dobles en todas las claves y strings.
@@ -525,8 +531,13 @@ class QuizzAgent:
         - content debe incluir: introduction, sections (lista), practicalTips (lista).
         - topics debe ser lista de objetos con id y name.
         - quiz debe ser un OBJETO (no lista) con: id, title, questionsCount,
-          passingScore, questions (lista). Cada pregunta requiere id, type,
-          question, options (si aplica), correctAnswer (si aplica), explanation.
+          passingScore, questions (lista).
+        - REGLAS OBLIGATORIAS para cada pregunta del quiz:
+          * type debe ser SOLO "multiple_choice" o "single_choice" (nunca fill_blank).
+          * options es OBLIGATORIO: una lista con exactamente 3 o 4 opciones de texto.
+          * correctAnswer es OBLIGATORIO: un entero (0, 1, 2 o 3) que indique el indice de la opcion correcta.
+          * explanation es OBLIGATORIO: texto que explique por que esa es la respuesta correcta.
+          * NUNCA omitas options o correctAnswer.
         """
 
         last_error: Exception | None = None

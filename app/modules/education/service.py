@@ -200,6 +200,11 @@ class EducationService:
         if "quiz" in data and data["quiz"] and "questions" in data["quiz"]:
             for q in data["quiz"].get("questions", []):
                 opts = q.get("options") or []
+                qtype = q.get("type", "")
+                if qtype == "true_false" and len(opts) < 2:
+                    opts = ["Verdadero", "Falso"]
+                if qtype in ("multiple_choice", "single_choice") and len(opts) < 2:
+                    opts = ["Opcion A", "Opcion B"]
                 q["options"] = opts
                 q["correctAnswer"] = self._repository._sanitize_correct_answer(
                     q.get("correctAnswer"), opts
