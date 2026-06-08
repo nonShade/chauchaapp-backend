@@ -182,6 +182,7 @@ DEFAULT_PLANNING_TIPS = [
 
 DEFAULT_MODULES = [
     {
+        "id": "mod-ahorro-inteligente",
         "slug": "ahorro-inteligente",
         "title": "Ahorro Inteligente",
         "description": "Aprende a ahorrar de forma efectiva con métodos probados y crea el hábito del ahorro.",
@@ -189,6 +190,8 @@ DEFAULT_MODULES = [
         "estimatedTimeMinutes": 15,
         "category": "Finanzas Personales",
         "tags": ["ahorro", "principiante", "metas"],
+        "topicsCount": 2,
+        "createdAt": "2026-01-01T00:00:00Z",
         "learningObjectives": [
             "Entender la importancia del ahorro sistemático",
             "Aplicar la regla 50/30/20",
@@ -254,6 +257,7 @@ DEFAULT_MODULES = [
         },
     },
     {
+        "id": "mod-creditos-responsables",
         "slug": "creditos-responsables",
         "title": "Créditos Responsables",
         "description": "Entiende cómo funcionan los créditos en Chile y aprende a usarlos sin caer en sobreendeudamiento.",
@@ -261,6 +265,8 @@ DEFAULT_MODULES = [
         "estimatedTimeMinutes": 20,
         "category": "Créditos",
         "tags": ["creditos", "deudas", "intermedio", "cae"],
+        "topicsCount": 2,
+        "createdAt": "2026-01-01T00:00:00Z",
         "learningObjectives": [
             "Diferenciar entre crédito responsable y sobreendeudamiento",
             "Calcular el costo total de un crédito",
