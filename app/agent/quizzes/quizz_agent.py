@@ -342,6 +342,16 @@ class QuizzAgent:
             or ""
         )
         sections = content_raw.get("sections") or data.get("sections") or []
+        normalized_sections = []
+        for sec in sections:
+            if not isinstance(sec, dict):
+                continue
+            normalized_sections.append({
+                "id": sec.get("id") or self._slugify(sec.get("title") or sec.get("name") or "section"),
+                "title": sec.get("title") or sec.get("name") or "Seccion",
+                "content": sec.get("content") or sec.get("description") or "",
+            })
+        sections = normalized_sections
         practical_tips = (
             content_raw.get("practicalTips")
             or data.get("practicalTips")
