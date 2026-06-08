@@ -2,12 +2,16 @@
 Education controller — HTTP endpoint layer.
 
 Endpoints:
-    - GET /v1/education/modules
-    - GET /v1/education/modules/{slug}
+    - POST /v1/education/modules/generate           : Iniciar generación en background
+    - GET  /v1/education/modules/tasks/{task_id}    : Estado de generación
+    - GET  /v1/education/modules
+    - GET  /v1/education/modules/{slug}
     - POST /v1/education/modules/{module_id}/progress/start
     - PATCH /v1/education/modules/{module_id}/progress/sections
     - POST /v1/education/modules/{module_id}/quiz/attempts
 """
+
+import threading
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -24,9 +28,40 @@ from app.modules.education.dto import (
 )
 from app.modules.education.repository import EducationRepository
 from app.modules.education.service import EducationService
-from app.shared.database import get_db
+from app.shared.background import task_manager
+from app.shared.background_dto import TaskStatusResponse, TaskSubmitResponse
+from app.shared.database import SessionLocal, get_db
 
 router = APIRouter(prefix="/v1/education", tags=["Education"])
+
+
+def _background_education_worker(task_id: str, items: list[dict]) -> None:
+    """Generate education modules in background thread."""
+    from app.modules.education.repository import EducationRepository
+    from app.modules.education.service import EducationService
+
+    db = SessionLocal()
+    try:
+        task_manager.update_status(task_id, "processing")
+        repo = EducationRepository(db)
+        service = EducationService(repository=repo)
+        modules = service.generate_modules(items=items)
+        result = {
+            "items": [
+                {
+                    "module": service.get_module_detail_payload(m),
+                    "progress": service.get_progress_for_module(
+                        module_id=m.id, user_id=None
+                    ),
+                }
+                for m in modules
+            ]
+        }
+        task_manager.update_status(task_id, "completed", result=result)
+    except Exception as e:
+        task_manager.update_status(task_id, "failed", error=str(e))
+    finally:
+        db.close()
 
 
 def _get_education_service(db: Session = Depends(get_db)) -> EducationService:
@@ -62,29 +97,38 @@ def list_modules(
 
 @router.post(
     "/modules/generate",
-    response_model=GenerateModulesResponseDTO,
-    summary="Generar modulo educativo con agente",
-    description="Genera un modulo usando Tavily + Groq y devuelve el detalle.",
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Iniciar generación de módulo educativo en background",
+    description="Encola la generación de módulos y retorna task_id. Consulta GET /v1/education/modules/tasks/{task_id} para resultados.",
 )
-def generate_module(
+def generate_module_background(
     payload: GenerateModulesRequestDTO,
-    service: EducationService = Depends(_get_education_service),
-) -> GenerateModulesResponseDTO:
-    modules = service.generate_modules(
-        items=[item.model_dump() for item in payload.items]
+):
+    items_data = [item.model_dump() for item in payload.items]
+    task_id = task_manager.create_task("education_generate")
+    thread = threading.Thread(
+        target=_background_education_worker,
+        args=(task_id, items_data),
+        daemon=True,
     )
-    return {
-        "items": [
-            {
-                "module": service.get_module_detail_payload(module),
-                "progress": service.get_progress_for_module(
-                    module_id=module.id, user_id=None
-                ),
-            }
-            for module in modules
-        ]
-    }
+    thread.start()
+    return TaskSubmitResponse(
+        task_id=task_id,
+        status="pending",
+        message="Generación de módulo iniciada. Consulta GET /v1/education/modules/tasks/{task_id} para resultados.",
+    )
+
+
+@router.get(
+    "/modules/tasks/{task_id}",
+    response_model=TaskStatusResponse,
+    summary="Consultar estado de generación de módulo educativo",
+)
+def get_education_task_status(task_id: str):
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Task no encontrada")
+    return TaskStatusResponse(**task)
 
 
 @router.get(
