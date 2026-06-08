@@ -464,6 +464,8 @@ def seed_educational_modules(db) -> int:
 
 def seed_news_tags(db) -> dict[str, uuid.UUID]:
     """Ensure common news tags exist, return {name: id} map."""
+    from sqlalchemy.exc import IntegrityError
+
     tag_names = [
         "IPC", "Inflación", "Chile", "Banco Central", "TPM",
         "Tasa de interés", "Dólar", "Tipo de cambio", "Importaciones",
@@ -478,8 +480,15 @@ def seed_news_tags(db) -> dict[str, uuid.UUID]:
         else:
             tag_id = uuid.uuid4()
             db.add(NewsTag(tag_id=tag_id, name=name, description=f"Noticias sobre {name.lower()}"))
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                real = db.query(NewsTag).filter(NewsTag.name == name).one()
+                tag_map[name] = real.tag_id
+                continue
             tag_map[name] = tag_id
-    db.flush()
+
     return tag_map
 
 
@@ -519,21 +528,24 @@ def seed_news(db) -> int:
 
 
 def seed_all_defaults() -> dict[str, int]:
-    """Run all seeders. Returns dict of {entity: count_seeded}."""
+    """Run all seeders independently. Returns dict of {entity: count_seeded}."""
     counts = {}
-    db = SessionLocal()
-    try:
-        counts["daily_tips"] = seed_daily_tips(db)
-        counts["financial_planning"] = seed_financial_planning(db)
-        counts["educational_modules"] = seed_educational_modules(db)
-        counts["news"] = seed_news(db)
-        db.commit()
-    except Exception:
-        db.rollback()
-        logger.exception("Error seeding defaults")
-        raise
-    finally:
-        db.close()
+    for seeder_name, seeder_fn in [
+        ("daily_tips", seed_daily_tips),
+        ("financial_planning", seed_financial_planning),
+        ("educational_modules", seed_educational_modules),
+        ("news", seed_news),
+    ]:
+        db = SessionLocal()
+        try:
+            count = seeder_fn(db)
+            db.commit()
+            counts[seeder_name] = count
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to seed %s", seeder_name)
+        finally:
+            db.close()
 
     seeded = {k: v for k, v in counts.items() if v > 0}
     if seeded:
