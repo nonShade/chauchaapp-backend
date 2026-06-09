@@ -210,6 +210,11 @@ class EducationService:
                     q.get("correctAnswer"), opts
                 )
             data["quiz"]["questionsCount"] = len(data["quiz"].get("questions", []))
+        data["id"] = str(record.educational_module_id)
+        if "topicsCount" not in data or data["topicsCount"] is None:
+            data["topicsCount"] = len(data.get("topics", []))
+        if "createdAt" not in data or data["createdAt"] is None:
+            data["createdAt"] = datetime.utcnow().isoformat()
         return Module(**data)
 
     def _require_module(self, module_id: str) -> Module:
