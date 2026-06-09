@@ -13,11 +13,11 @@ from app.modules.transactions.controller import router as transactions_router
 from app.modules.news.controller import router as news_router
 from app.modules.financial_data.controller import router as financial_planning_router
 from app.modules.auth.controller import router as auth_router
-from app.modules.groups.controller import router as groups_router
 from app.modules.notifications.controller import router as notifications_router
 from app.modules.education.controller import router as education_router
-from app.modules.financial_data.controller import router as financial_planning_router
 import os
+
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -27,12 +27,25 @@ from fastapi.responses import JSONResponse
 load_dotenv()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Seed default data on startup (idempotent)."""
+    try:
+        from scripts.seed_defaults import seed_all_defaults
+        seed_all_defaults()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Failed to seed defaults")
+    yield
+
+
 app = FastAPI(
     title="ChauchaApp API",
     description="API Backend for ChauchaApp — financial literacy platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
@@ -60,10 +73,8 @@ app.include_router(financial_planning_router)
 app.include_router(daily_tips_router)
 app.include_router(groups_router)
 app.include_router(users_router)
-app.include_router(groups_router)
 app.include_router(notifications_router)
 app.include_router(education_router)
-app.include_router(financial_planning_router)
 
 
 # ---------------------------------------------------------------------------

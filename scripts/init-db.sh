@@ -41,14 +41,16 @@ for db in "$POSTGRES_DB" chauchaapp_db_qa chauchaapp_db_prod; do
 done
 
 # ---------------------------------------------------------
-# 3. Apply QA seed data (only to QA database)
+# 3. Apply QA seed data (to QA + Production databases)
 # ---------------------------------------------------------
 SEED_FILE="/docker-scripts/seed-qa.sql"
 
 if [ -f "$SEED_FILE" ]; then
-    echo "Applying QA seed data to chauchaapp_db_qa..."
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "chauchaapp_db_qa" -f "$SEED_FILE"
-    echo "QA seed data applied successfully"
+    for db in chauchaapp_db_qa chauchaapp_db_prod; do
+        echo "Applying QA seed data to $db..."
+        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" -f "$SEED_FILE"
+        echo "QA seed data applied successfully to $db"
+    done
 else
     echo "No QA seed file found, skipping..."
 fi

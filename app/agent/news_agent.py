@@ -266,7 +266,19 @@ class NewsAnalysisAgentOptimized:
                     raw_content = response.content.strip()
                     if raw_content.startswith("```json"):
                         raw_content = raw_content.replace("```json", "").replace("```", "").strip()
-                    content_dict = json_module.loads(raw_content)
+                    first_brace = raw_content.find("{")
+                    last_brace = raw_content.rfind("}")
+                    if first_brace != -1 and last_brace != -1:
+                        raw_content = raw_content[first_brace:last_brace + 1]
+                    try:
+                        content_dict = json_module.loads(raw_content, strict=False)
+                    except json_module.JSONDecodeError:
+                        import re
+                        cleaned = raw_content
+                        cleaned = re.sub(r',\s*}', '}', cleaned)
+                        cleaned = re.sub(r',\s*]', ']', cleaned)
+                        cleaned = re.sub(r'[\x00-\x1f](?<![\n\r\t])', ' ', cleaned)
+                        content_dict = json_module.loads(cleaned, strict=False)
                 else:
                     content_dict = response.content.model_dump()
 
@@ -354,7 +366,7 @@ class NewsAnalysisAgentOptimized:
                     if analysis.nivel_urgencia not in self.URGENCY_LEVELS:
                         analysis.nivel_urgencia = "bajo"
 
-                    url_original = analysis.fuente_url or news_item.get("source_url") or ""
+                    url_original = analysis.fuente_url or news_item.get("source_url") or news_item.get("link") or ""
                     url_truncada = url_original[:250] if len(url_original) > 250 else url_original
 
                     if url_truncada not in existing_news_urls:
@@ -455,7 +467,7 @@ class NewsAnalysisAgentOptimized:
         analyses_bulk = []
         for batch_news, analyses in batch_results:
             for news_item, analysis_dict in zip(batch_news, analyses):
-                url_truncada = (analysis_dict.get("fuente_url") or news_item.get("source_url") or "")[:250]
+                url_truncada = (analysis_dict.get("fuente_url") or news_item.get("source_url") or news_item.get("link") or "")[:250]
 
                 if url_truncada in news_url_to_id:
                     news_id = news_url_to_id[url_truncada]
@@ -567,9 +579,9 @@ class NewsAnalysisAgentOptimized:
                         "title": item.get("title") or item.get("titulo", "Sin título"),
                         "summary": item.get("summary") or item.get("resumen", ""),
                         "content_text": item.get("content_text", ""),
-                        "source_url": item.get("source_url") or item.get("fuente_url", ""),
+                        "source_url": item.get("source_url") or item.get("fuente_url") or item.get("link", ""),
                         "published_at": item.get("published_at"),
-                        "link": item.get("source_url") or item.get("fuente_url", ""),
+                        "link": item.get("source_url") or item.get("fuente_url") or item.get("link", ""),
                     })
 
                 logger.info(f" Obtenidas {len(formatted)} noticias del endpoint interno")

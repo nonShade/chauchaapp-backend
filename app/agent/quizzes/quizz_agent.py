@@ -109,9 +109,31 @@ class Question(BaseModel):
         opts = values.get("options")
         if qtype in ("multiple_choice", "single_choice"):
             if v is None:
-                raise ValueError("choice questions require a correctAnswer index")
-            if not isinstance(v, int) or v < 0 or (opts and v >= len(opts)):
-                raise ValueError("correctAnswer must be a valid index for options")
+                return 0
+            if isinstance(v, list):
+                v = v[0] if v else 0
+            if isinstance(v, str):
+                lower = v.strip().lower()
+                if lower in ("verdadero", "true"):
+                    v = 0
+                elif lower in ("falso", "false"):
+                    v = 1
+                elif opts:
+                    try:
+                        v = opts.index(v)
+                    except ValueError:
+                        for i, opt in enumerate(opts):
+                            if lower in str(opt).strip().lower():
+                                v = i
+                                break
+                        else:
+                            v = 0
+                else:
+                    v = 0
+            if not isinstance(v, int):
+                v = 0
+            if opts:
+                v = max(0, min(v, len(opts) - 1))
         return v
 
 
@@ -320,6 +342,16 @@ class QuizzAgent:
             or ""
         )
         sections = content_raw.get("sections") or data.get("sections") or []
+        normalized_sections = []
+        for sec in sections:
+            if not isinstance(sec, dict):
+                continue
+            normalized_sections.append({
+                "id": sec.get("id") or self._slugify(sec.get("title") or sec.get("name") or "section"),
+                "title": sec.get("title") or sec.get("name") or "Seccion",
+                "content": sec.get("content") or sec.get("description") or "",
+            })
+        sections = normalized_sections
         practical_tips = (
             content_raw.get("practicalTips")
             or data.get("practicalTips")
@@ -367,16 +399,19 @@ class QuizzAgent:
                 "multiple_choice",
                 "single_choice",
                 "true_false",
-                "fill_blank",
             ):
                 qtype = "single_choice"
             qtext = question.get("question") or question.get("title") or f"Pregunta {index}"
             options = question.get("options")
-            if qtype in ("multiple_choice", "single_choice") and not options:
+            if not isinstance(options, list):
+                options = []
+            if qtype in ("multiple_choice", "single_choice") and len(options) < 2:
                 options = ["Opcion A", "Opcion B"]
-            if qtype == "true_false" and not options:
+            if qtype == "true_false" and len(options) < 2:
                 options = ["Verdadero", "Falso"]
             correct_answer = question.get("correctAnswer")
+            if isinstance(correct_answer, list):
+                correct_answer = correct_answer[0] if correct_answer else 0
             if isinstance(correct_answer, str) and options:
                 normalized_answer = correct_answer.strip().lower()
                 if normalized_answer in ("verdadero", "true"):
@@ -387,11 +422,22 @@ class QuizzAgent:
                     try:
                         correct_answer = options.index(correct_answer)
                     except ValueError:
-                        correct_answer = None
+                        for i, opt in enumerate(options):
+                            if normalized_answer in str(opt).strip().lower():
+                                correct_answer = i
+                                break
+                        else:
+                            correct_answer = 0
+            if isinstance(correct_answer, int) and options:
+                correct_answer = max(0, min(correct_answer, len(options) - 1))
 
             if qtype in ("multiple_choice", "single_choice", "true_false"):
-                if correct_answer is None:
+                if correct_answer is None or not isinstance(correct_answer, int):
                     correct_answer = 0
+                correct_answer = max(0, min(correct_answer, len(options) - 1))
+            if not options:
+                options = ["Opcion A", "Opcion B"]
+                correct_answer = 0
             normalized_questions.append(
                 {
                     "id": question.get("id") or f"q{index}",
@@ -483,6 +529,7 @@ class QuizzAgent:
         - Prohibido: "que es", "quien regula", "cual es", "que significa", listas de conceptos.
         - Opciones deben ser acciones concretas, no definiciones.
         - Evita true_false salvo que el escenario requiera verificar una accion.
+        - Prohibido: preguntas tipo fill_blank (rellenar espacio en blanco).
         - La explicacion debe dar feedback practico y conectar con la seccion del modulo.
         - Responde SOLO con JSON valido para el esquema Module.
         - Usa comillas dobles en todas las claves y strings.
@@ -494,13 +541,18 @@ class QuizzAgent:
         - content debe incluir: introduction, sections (lista), practicalTips (lista).
         - topics debe ser lista de objetos con id y name.
         - quiz debe ser un OBJETO (no lista) con: id, title, questionsCount,
-          passingScore, questions (lista). Cada pregunta requiere id, type,
-          question, options (si aplica), correctAnswer (si aplica), explanation.
+          passingScore, questions (lista).
+        - REGLAS OBLIGATORIAS para cada pregunta del quiz:
+          * type debe ser SOLO "multiple_choice" o "single_choice" (nunca fill_blank).
+          * options es OBLIGATORIO: una lista con exactamente 3 o 4 opciones de texto.
+          * correctAnswer es OBLIGATORIO: un entero (0, 1, 2 o 3) que indique el indice de la opcion correcta.
+          * explanation es OBLIGATORIO: texto que explique por que esa es la respuesta correcta.
+          * NUNCA omitas options o correctAnswer.
         """
 
         last_error: Exception | None = None
         for _attempt in range(3):
-            response = self.agent.run(prompt, output_schema=Module)
+            response = self.agent.run(prompt)
             content = response.content
             if content is None:
                 last_error = RuntimeError("Agent returned no content")
