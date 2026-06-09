@@ -91,7 +91,7 @@ async def _run_news_analysis(
     from app.agent.news_agent import news_analysis_agent
 
     all_news_from_endpoint = (
-        await news_analysis_agent.get_latest_news_from_endpoint(limit=15)
+        await news_analysis_agent.get_latest_rss_news(limit=15)
     ) or []
 
     user_categories = user_profile.get("topics", [])

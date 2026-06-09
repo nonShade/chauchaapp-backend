@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 
 from app.modules.education.dto import (
     GenerateModulesRequestDTO,
-    GenerateModulesResponseDTO,
     ModuleDetailResponseDTO,
     ModulesListResponseDTO,
     SubmitQuizAttemptRequestDTO,
