@@ -9,28 +9,28 @@ Endpoints:
 - GET  /v1/news/latest_news                  : RSS feeds sin analizar
 """
 
+import asyncio
 import json
 import logging
 import os
-import uuid
-import asyncio
 import threading
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.news.dto import (
-    TopicResponseDTO,
-    NewsFullAnalysisResponseDTO,
     AnalyzedNewsListResponseDTO,
+    NewsFullAnalysisResponseDTO,
+    TopicResponseDTO,
 )
 from app.modules.news.repository import NewsRepository
 from app.modules.news.service import NewsService
+from app.modules.users.entities import User
 from app.shared.background import task_manager
 from app.shared.background_dto import TaskStatusResponse, TaskSubmitResponse
 from app.shared.database import SessionLocal, get_db
-from app.modules.users.entities import User
 from app.shared.security.auth_middleware import get_current_user
 
 router = APIRouter(prefix="/v1/news", tags=["News"])
@@ -49,7 +49,9 @@ def _build_user_profile(user: User) -> dict:
         income_type_name = user.income_type_rel.name
     topics = []
     if hasattr(user, "user_interests") and user.user_interests:
-        topics = [ui.tag.name for ui in user.user_interests if hasattr(ui, "tag") and ui.tag]
+        topics = [
+            ui.tag.name for ui in user.user_interests if hasattr(ui, "tag") and ui.tag
+        ]
     return {
         "user_id": str(user.user_id),
         "first_name": user.first_name,
@@ -124,10 +126,11 @@ async def _run_news_analysis(
             logger.warning("No se encontraron noticias chilenas")
 
     combined_news = prioritized_news + chilean_news
+    target_count = int(os.getenv("NEWS_ANALYSIS_TARGET_COUNT", "10"))
     final_news = news_analysis_agent._select_and_prioritize_news(
         all_news=combined_news,
         user_categories=user_categories,
-        target_count=10,
+        target_count=target_count,
     )
 
     summary = {
@@ -136,7 +139,8 @@ async def _run_news_analysis(
         "savings_rate": (
             round(
                 (user_profile["monthly_income"] - user_profile["monthly_expenses"])
-                / user_profile["monthly_income"] * 100,
+                / user_profile["monthly_income"]
+                * 100,
                 1,
             )
             if user_profile["monthly_income"] > 0
@@ -197,13 +201,13 @@ def _background_news_worker(task_id: str, user_profile: dict, threshold: int) ->
     summary="Iniciar análisis de noticias en background",
     description="""
     Encola el análisis completo de noticias y retorna inmediatamente un task_id.
-    
+
     El análisis incluye:
     1. Obtener RSS feeds
     2. Búsqueda en dominios .cl si es necesario
     3. Análisis con IA (Nvidia) según perfil financiero
     4. Guardado en base de datos
-    
+
     Usa GET /v1/news/analyze/status/{task_id} para consultar el resultado.
     """,
     responses={
@@ -263,10 +267,10 @@ def get_analyze_status(task_id: str):
     summary="Obtener TODAS las noticias YA analizadas del usuario",
     description="""
     Retorna las noticias analizadas para este usuario.
-    
+
     Si el usuario no tiene análisis personalizados aún (primera vez),
     retorna noticias por defecto precargadas en la base de datos.
-    
+
     Cuando el análisis en background termine, las noticias reales
     aparecerán junto a las precargadas.
     """,
@@ -282,39 +286,40 @@ async def get_all_analyzed(
     try:
         user = db.query(User).filter(User.user_id == current_user.user_id).first()
         if not user:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
+            )
 
         user_id_str = str(user.user_id)
 
         from app.agent.news_agent import news_analysis_agent
 
         analyzed = await news_analysis_agent.get_all_analyzed_news(
-            user_id=user_id_str, db_session=db,
+            user_id=user_id_str,
+            db_session=db,
         )
 
         # ── If user has no analyses yet, try seed news ─────────────────
         if not analyzed:
             from app.modules.news.entities import News, PersonalizedAnalysisNews
 
-            seed_news = (
-                db.query(News)
-                .order_by(News.published_at.desc())
-                .limit(5)
-                .all()
-            )
+            seed_news = db.query(News).order_by(News.published_at.desc()).limit(5).all()
 
             for news in seed_news:
                 analysis_record = PersonalizedAnalysisNews(
                     analysis_id=uuid.uuid4(),
                     news_id=news.news_id,
                     user_id=user.user_id,
-                    analysis_text=json.dumps({
-                        "analisis": f"Noticia precargada: {news.title}. Esta es información general. El análisis personalizado se generará en segundo plano.",
-                        "impacto_personal": "Lee esta noticia para mantenerte informado. Pronto tendrás un análisis adaptado a tu perfil financiero.",
-                        "recomendacion": "Mantente al día con las noticias económicas. Activa la generación de análisis desde la app para recibir recomendaciones personalizadas.",
-                        "nivel_urgencia": "bajo",
-                        "etiquetas": [],
-                    }, ensure_ascii=False),
+                    analysis_text=json.dumps(
+                        {
+                            "analisis": f"Noticia precargada: {news.title}. Esta es información general. El análisis personalizado se generará en segundo plano.",
+                            "impacto_personal": "Lee esta noticia para mantenerte informado. Pronto tendrás un análisis adaptado a tu perfil financiero.",
+                            "recomendacion": "Mantente al día con las noticias económicas. Activa la generación de análisis desde la app para recibir recomendaciones personalizadas.",
+                            "nivel_urgencia": "bajo",
+                            "etiquetas": [],
+                        },
+                        ensure_ascii=False,
+                    ),
                     generated_at=datetime.utcnow(),
                 )
                 db.add(analysis_record)
@@ -322,7 +327,8 @@ async def get_all_analyzed(
             db.commit()
 
             analyzed = await news_analysis_agent.get_all_analyzed_news(
-                user_id=user_id_str, db_session=db,
+                user_id=user_id_str,
+                db_session=db,
             )
 
         return {

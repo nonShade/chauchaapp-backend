@@ -14,6 +14,7 @@ Endpoints:
 import threading
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from app.modules.education.dto import (
@@ -56,7 +57,9 @@ def _background_education_worker(task_id: str, items: list[dict]) -> None:
                 for m in modules
             ]
         }
-        task_manager.update_status(task_id, "completed", result=result)
+        task_manager.update_status(
+            task_id, "completed", result=jsonable_encoder(result)
+        )
     except Exception as e:
         task_manager.update_status(task_id, "failed", error=str(e))
     finally:
@@ -152,9 +155,7 @@ def get_module_detail(
         )
 
     try:
-        progress = service.get_progress_for_module(
-            module_id=module.id, user_id=user_id
-        )
+        progress = service.get_progress_for_module(module_id=module.id, user_id=user_id)
     except ValueError as exc:
         _raise_service_error(exc)
 
