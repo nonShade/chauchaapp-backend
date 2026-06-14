@@ -4,12 +4,12 @@ Background task manager with cross-process persistence.
 Uses a JSON file (fcntl-locked) so all uvicorn workers share the same tasks.
 """
 
+import asyncio
+import fcntl
 import json
 import os
-import fcntl
-import uuid
 import threading
-import asyncio
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Callable
 
@@ -45,7 +45,7 @@ class BackgroundTaskManager:
         os.makedirs(os.path.dirname(TASKS_FILE) or ".", exist_ok=True)
         with open(TASKS_FILE, "w") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            json.dump(self._cache, f, indent=2)
+            json.dump(self._cache, f, indent=2, default=str)
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
     def _lazy_cleanup(self) -> None:
@@ -93,9 +93,7 @@ class BackgroundTaskManager:
             task = self._cache.get(task_id)
             return dict(task) if task else None
 
-    def get_user_tasks(
-        self, user_id: str, task_type: str | None = None
-    ) -> list[dict]:
+    def get_user_tasks(self, user_id: str, task_type: str | None = None) -> list[dict]:
         with self._lock:
             self._load()
             return [
@@ -113,6 +111,7 @@ class BackgroundTaskManager:
         Handles both sync and async functions. For async functions, creates
         a dedicated event loop in the thread.
         """
+
         def wrapper() -> None:
             try:
                 if asyncio.iscoroutinefunction(fn):
