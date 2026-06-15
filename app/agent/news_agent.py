@@ -457,21 +457,61 @@ class NewsAnalysisAgent:
         if cleaned.startswith("```"):
             cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
             cleaned = re.sub(r"\s*```$", "", cleaned)
+
         fb = cleaned.find("{")
         lb = cleaned.rfind("}")
-        if fb == -1 or lb == -1:
-            return None
-        cleaned = cleaned[fb : lb + 1]
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            pass
-        try:
-            cleaned = re.sub(r",\s*}", "}", cleaned)
-            cleaned = re.sub(r",\s*]", "]", cleaned)
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            return None
+        if fb != -1 and lb != -1:
+            candidate = cleaned[fb : lb + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+            try:
+                fixed = re.sub(r",\s*}", "}", candidate)
+                fixed = re.sub(r",\s*]", "]", fixed)
+                return json.loads(fixed)
+            except json.JSONDecodeError:
+                pass
+
+        # JSON truncado por max_tokens: extraer objetos completos del array
+        array_match = re.search(r'"analisis"\s*:\s*\[', cleaned)
+        if array_match:
+            items = []
+            i = array_match.end()
+            while i < len(cleaned):
+                if cleaned[i] == "{":
+                    depth = 0
+                    in_string = False
+                    escape = False
+                    j = i
+                    while j < len(cleaned):
+                        c = cleaned[j]
+                        if escape:
+                            escape = False
+                        elif c == "\\" and in_string:
+                            escape = True
+                        elif c == '"':
+                            in_string = not in_string
+                        elif not in_string:
+                            if c == "{":
+                                depth += 1
+                            elif c == "}":
+                                depth -= 1
+                                if depth == 0:
+                                    try:
+                                        items.append(json.loads(cleaned[i : j + 1]))
+                                    except json.JSONDecodeError:
+                                        pass
+                                    break
+                        j += 1
+                    i = j + 1
+                else:
+                    i += 1
+            if items:
+                logger.warning(f"JSON truncado: se recuperaron {len(items)} objeto(s) parciales")
+                return {"analisis": items}
+
+        return None
 
     async def _analyze_batch(
         self, batch: list[dict], user_context: str, batch_idx: int
@@ -558,7 +598,7 @@ class NewsAnalysisAgent:
                     model=self.NVIDIA_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
-                    max_tokens=3072,
+                    max_tokens=8192,
                 )
                 raw = response.choices[0].message.content
                 if not raw:

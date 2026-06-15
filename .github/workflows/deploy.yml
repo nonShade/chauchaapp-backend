@@ -24,3 +24,10 @@ jobs:
             git pull --ff-only origin develop
             docker compose --profile production down
             docker compose --profile production up -d --build
+            until docker exec chauchaapp-postgres pg_isready -U postgres -q; do sleep 2; done
+            docker exec chauchaapp-postgres psql -U postgres -tc \
+              "SELECT 1 FROM pg_database WHERE datname='chauchaapp_db_prod'" | grep -q 1 || {
+              docker exec chauchaapp-postgres psql -U postgres -c "CREATE DATABASE chauchaapp_db_prod;"
+              docker exec chauchaapp-postgres psql -U postgres -d chauchaapp_db_prod -f /docker-scripts/schema.sql
+              docker exec chauchaapp-postgres psql -U postgres -d chauchaapp_db_prod -f /docker-scripts/seed-qa.sql
+            }
